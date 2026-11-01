@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Only the first quest of a chain can be accepted by hand. The others start on their own when the previous one is turned in; their Accept button is off and the list says so.
 - A quest that belongs to a chain stays out of the tracker until the one before it has been turned in.
 - Templates list: chains are now a tree. The first quest of a chain is its title, the rest hang below it (folding with the +/- button), and follow-ups of follow-ups nest further down.
 - Quests now use the game's own quest icons instead of custom ones: campaign for chains, recurring for daily and weekly, and the plain side-quest icon for the rest, each with its in-progress and turn-in versions. The template icon picker is gone.

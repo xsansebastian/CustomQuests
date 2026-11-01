@@ -396,6 +396,22 @@ test("Chains can't loop", function()
     eq(select(2, Model.SaveTemplate(first, ids[1], fake.now)), "ERR_CHAIN_CYCLE")
 end)
 
+test("Only the first quest of a chain can be accepted by hand", function()
+    local ids = chainOf(3)
+    eq(select(2, Lifecycle.CanAccept(ids[1])), nil, "the first one is free")
+    local q1 = assert(Lifecycle.Accept(ids[1]))
+    Objectives.AdjustManual(Lifecycle.Get(q1), 1, 1)
+    settle()
+    turnIn(q1)
+    local q2 = Lifecycle.FindByTemplate(ids[2])
+    assert(q2, "the second one started by itself")
+    -- Even with its predecessor completed, nobody accepts the third (or a repeat of the second) by hand.
+    eq(select(2, Lifecycle.CanAccept(ids[3])), "ERR_LOCKED", "still locked")
+    Lifecycle.Abandon(q2)
+    eq(select(2, Lifecycle.Accept(ids[2])), "ERR_CHAIN_AUTO", "unlocked but automatic")
+    eq(select(3, Lifecycle.Accept(ids[2])), "Part 1", "names the quest it follows")
+end)
+
 test("A chained quest stays hidden until its predecessor is turned in", function()
     local ids = chainOf(2)
     -- Accepted while free, then made part of a chain nobody has completed.

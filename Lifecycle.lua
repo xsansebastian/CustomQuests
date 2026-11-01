@@ -52,7 +52,7 @@ function Lifecycle.IsUnlocked(quest)
 end
 
 -- Returns true, or nil plus an error key from ns.L and its format argument.
-function Lifecycle.CanAccept(templateID)
+function Lifecycle.CanAccept(templateID, viaChain)
     local template = Model.GetTemplate(templateID)
     if not template then return nil, "ERR_NO_TEMPLATE" end
     local _, existing = Lifecycle.FindByTemplate(templateID)
@@ -66,12 +66,15 @@ function Lifecycle.CanAccept(templateID)
     if prerequisite and not Lifecycle.HasCompleted(template.requires) then
         return nil, "ERR_LOCKED", prerequisite.title
     end
+    -- The rest of a chain starts on its own when the previous quest is turned in.
+    if prerequisite and not viaChain then return nil, "ERR_CHAIN_AUTO", prerequisite.title end
     return true
 end
 
 -- Returns the new quest id, or nil, an error key from ns.L and its argument.
-function Lifecycle.Accept(templateID)
-    local ok, err, arg = Lifecycle.CanAccept(templateID)
+-- viaChain: the quest is being started by the chain itself, not by the player.
+function Lifecycle.Accept(templateID, viaChain)
+    local ok, err, arg = Lifecycle.CanAccept(templateID, viaChain)
     if not ok then return nil, err, arg end
     local template = Model.GetTemplate(templateID)
     local now = ns.api.Now()
@@ -133,7 +136,7 @@ end
 local function startFollowUps()
     while #pendingFollowUps > 0 do
         local nextID = table.remove(pendingFollowUps, 1)
-        local questID, err, arg = Lifecycle.Accept(nextID)
+        local questID, err, arg = Lifecycle.Accept(nextID, true)
         Util.Fire("CHAIN_NEXT", nextID, questID, err, arg)
     end
 end

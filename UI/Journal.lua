@@ -108,6 +108,8 @@ local function buildEntries()
             local ok, err = Lifecycle.CanAccept(node.id)
             if not ok and (err == "ERR_LOCKED" or err == "ERR_LEVEL_LOW" or err == "ERR_LEVEL_HIGH") then
                 sub = "|cff808080" .. sub .. " · " .. L["LOCKED_SHORT"] .. "|r"
+            elseif err == "ERR_CHAIN_AUTO" then
+                sub = "|cff808080" .. sub .. " · " .. L["CHAIN_AUTO_SHORT"] .. "|r"
             end
             entries[#entries + 1] = { id = node.id, kind = UI.QuestKind(t, node.id), iconState = "available",
                 title = UI.QuestText(t.title), sub = sub, depth = node.depth, hasChildren = node.hasChildren,
@@ -219,6 +221,7 @@ local function setButtons(specs)
         b:ClearAllPoints()
         if prev then b:SetPoint("LEFT", prev, "RIGHT", 6, 0) else b:SetPoint("BOTTOMLEFT", detail.frame, "BOTTOMLEFT", 0, 0) end
         b:SetText(spec[1])
+        b:SetEnabled(spec[3] ~= false)
         b:SetScript("OnClick", spec[2])
         b:Show()
         prev = b
@@ -316,6 +319,7 @@ local function showTemplate(id)
         meta, table.concat(lines, "\n"))
     detail.content:SetHeight(-y)
 
+    local _, acceptErr = Lifecycle.CanAccept(id)
     setButtons({
         { L["ACCEPT"], function()
             local _, err, arg = Lifecycle.Accept(id)
@@ -324,7 +328,7 @@ local function showTemplate(id)
             state.tab = "active"
             state.selected.active = Lifecycle.FindByTemplate(id)
             Journal.Refresh()
-        end },
+        end, acceptErr ~= "ERR_CHAIN_AUTO" },
         { L["EDIT"], function() ns.Editor.Open(id) end },
         { L["EXPORT"], function() ns.Dialogs.ShowExport(id) end },
         { DELETE, function()
