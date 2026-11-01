@@ -1574,5 +1574,28 @@ test("AcceptAll starts what can start: a chain yields its first link, running qu
     eq(Model.CleanOptions({}).sharing.autoStart, true, "on by default")
 end)
 
+test("Search: words match title, section name and stage text; a filter hides empty sections", function()
+    local s = assert(Model.CreateSection("Lost Isles", fake.now))
+    local a = quest("Herbs for the Kettle")
+    local b = quest("Patrol the Road")
+    Model.GetTemplate(b).section = s
+    Model.GetTemplate(a).stages[1].text = "Pick flowers near the inn"
+    local function matches(id, q) return Model.MatchesSearch(Model.GetTemplate(id), q) end
+    eq(matches(a, ""), true, "empty query matches everything")
+    eq(matches(a, "  "), true)
+    eq(matches(a, "HERBS kettle"), true, "every word, any case, any order")
+    eq(matches(a, "herbs road"), false, "all words must match")
+    eq(matches(a, "flowers"), true, "stage text")
+    eq(matches(b, "isles"), true, "section name")
+    eq(matches(a, "isles"), false)
+    local tree = Model.SectionedTree({}, {}, function(id) return matches(id, "road") end)
+    eq(#tree, 2, "one header and one row")
+    eq(tree[1].header.id, s)
+    local none = Model.SectionedTree({}, {}, function(id) return matches(id, "zzz") end)
+    eq(#none, 0, "no matches: no headers either")
+    Model.DeleteSection(s)
+    eq(#Model.SectionedTree({}, {}, function(id) return matches(id, "herbs") end), 1, "no sections: plain tree")
+end)
+
 print(("%d passed, %d failed"):format(passed, failed))
 if failed > 0 then os.exit(1) end

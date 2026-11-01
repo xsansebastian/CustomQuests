@@ -19,7 +19,7 @@ local META_GAP = 10 -- space between the detail title and the line under it
 local window, list, detail
 local tabButtons = {}
 -- main: the last of Active/History shown, so the swap button still has a meaning on Templates.
-local state = { tab = "active", main = "active", selected = {}, checked = {} } -- selected[tab] = id; checked[id] = true
+local state = { tab = "active", main = "active", selected = {}, checked = {}, search = "" } -- selected[tab] = id; checked[id] = true
 local CHECK_WIDTH = 20 -- room the Templates checkbox takes in front of each row
 
 -- The view the swap button leads to: the one of Active/History you are not in.
@@ -169,7 +169,14 @@ local function buildEntries()
         entries = grouped
     elseif state.tab == "templates" then
         -- Chains are a tree: the first quest is the chain's title, the rest hang below it.
-        for _, g in ipairs(Model.SectionedTree(Model.account.sectionCollapsed, Model.account.chainCollapsed)) do
+        -- While searching, folded sections and chains stay open so no match is hidden.
+        local searching = state.search:find("%S") ~= nil
+        local filter = searching and function(id)
+            return Model.MatchesSearch(Model.account.templates[id], state.search)
+        end or nil
+        local sectionFolds = searching and {} or Model.account.sectionCollapsed
+        local chainFolds = searching and {} or Model.account.chainCollapsed
+        for _, g in ipairs(Model.SectionedTree(sectionFolds, chainFolds, filter)) do
             if g.header then
                 entries[#entries + 1] = { header = g.header, collapsed = g.collapsed, count = g.count }
             else
@@ -252,7 +259,8 @@ local function refreshList(entries)
     end
     list.content:SetHeight(math.max(1, y))
     list.empty:SetShown(#entries == 0)
-    list.empty:SetText(L["EMPTY_" .. state.tab:upper()])
+    local searching = state.tab == "templates" and state.search:find("%S") ~= nil
+    list.empty:SetText(searching and L["EMPTY_SEARCH"] or L["EMPTY_" .. state.tab:upper()])
 end
 
 -- Moves the ticked templates into a section (nil: out of any section).
@@ -646,6 +654,20 @@ local function create()
     tabButtons.move = moveButton
     tabButtons.templateActions = { newButton, importButton, sectionButton, editButton }
 
+    -- Filters the Templates list as you type.
+    local search = CreateFrame("EditBox", nil, window, "SearchBoxTemplate")
+    search:SetSize(listWidth - 12, 20)
+    search:SetPoint("TOPLEFT", window, "TOPLEFT", 18, -62)
+    search:SetAutoFocus(false)
+    search:SetMaxLetters(60)
+    search:HookScript("OnTextChanged", function(self)
+        local text = self:GetText() or ""
+        if text == state.search then return end
+        state.search = text
+        Journal.Refresh()
+    end)
+    tabButtons.search = search
+
     list = {}
     list.scroll, list.content = createScroll(window, listWidth - 4)
     list.scroll:SetPoint("TOPLEFT", 12, -60)
@@ -713,6 +735,7 @@ local function create()
         list.content:SetWidth(listWidth - 4)
         list.scroll:SetWidth(listWidth - 4)
         list.empty:SetWidth(listWidth - 20)
+        tabButtons.search:SetWidth(listWidth - 12)
         for _, row in ipairs(rows) do row:SetWidth(listWidth - 4) end
         divider:ClearAllPoints()
         divider:SetPoint("TOPLEFT", listWidth + 30, -60)
@@ -795,7 +818,8 @@ function Journal.Refresh()
     tabButtons.edit:SetWidth(editing and 100 or listWidth - 10)
     -- On Templates the tree stops higher, to leave room for the buttons under it.
     list.scroll:ClearAllPoints()
-    list.scroll:SetPoint("TOPLEFT", window, "TOPLEFT", 12, -60)
+    tabButtons.search:SetShown(onTemplates)
+    list.scroll:SetPoint("TOPLEFT", window, "TOPLEFT", 12, onTemplates and -88 or -60)
     list.scroll:SetPoint("BOTTOMLEFT", window, "BOTTOMLEFT", 12, onTemplates and (editing and 70 or 46) or 16)
     window.TitleText:SetText("CustomQuests · " .. L["TAB_" .. state.tab:upper()])
     local entries = buildEntries()

@@ -754,21 +754,42 @@ function Model.GroupBySection(items, getSection, collapsed, showEmpty)
     return out
 end
 
+-- True when the template matches the search text: every word of the query must
+-- appear (ignoring case) in its title, its section's name or the text of a stage.
+-- An empty query matches everything.
+function Model.MatchesSearch(tpl, query)
+    query = (query or ""):lower():match("^%s*(.-)%s*$")
+    if query == "" then return true end
+    local parts = { tpl.title }
+    local section = Model.SectionByID(Model.SectionOf(tpl))
+    if section then parts[#parts + 1] = section.name end
+    for _, stage in ipairs(tpl.stages or {}) do parts[#parts + 1] = stage.text end
+    local haystack = table.concat(parts, " "):lower()
+    for word in query:gmatch("%S+") do
+        if not haystack:find(word, 1, true) then return false end
+    end
+    return true
+end
+
 -- The Templates list with section headers: header entries as above, followed
 -- by that section's TemplateTree rows ({ row = row }). Without sections it is
 -- the plain tree, wrapped the same way. Empty sections keep their header.
-function Model.SectionedTree(sectionCollapsed, chainCollapsed)
+-- With filter(id), only the templates it accepts are listed and the sections
+-- left empty lose their header.
+function Model.SectionedTree(sectionCollapsed, chainCollapsed, filter)
     sectionCollapsed = sectionCollapsed or {}
     local out = {}
     if #Model.account.sections == 0 then
-        for _, row in ipairs(Model.TemplateTree(chainCollapsed)) do out[#out + 1] = { row = row } end
+        for _, row in ipairs(Model.TemplateTree(chainCollapsed, filter)) do out[#out + 1] = { row = row } end
         return out
     end
-    local function add(header, belongs)
+    local function add(header, inSection)
+        local belongs = inSection
+        if filter then belongs = function(id) return filter(id) and inSection(id) end end
         local rows = Model.TemplateTree(chainCollapsed, belongs)
         local total = 0
         for _, row in ipairs(rows) do if row.depth == 0 then total = total + row.count end end
-        if total == 0 and header.id == Model.NO_SECTION then return end
+        if total == 0 and (filter or header.id == Model.NO_SECTION) then return end
         local folded = sectionCollapsed[header.id] and true or false
         out[#out + 1] = { header = header, collapsed = folded, count = total }
         if not folded then
