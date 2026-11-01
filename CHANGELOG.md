@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.8.0
 
 - New objective type **Near NPC**: completes when you get close to an NPC (talking to it, its soft interaction target, or your target, mouseover or a visible nameplate within about 10 yards). Pick the NPC with **Target**. An optional **popup text** opens a window with the NPC's portrait, its name and the text (scrolls when long), with the quest title on its title bar; it opens once, when the objective completes. While the objective is pending, the NPC's tooltip shows the quest and the objective's text. Inside instances the game hides who an NPC is, so it can't count there.
 - Location and Near NPC objectives have a **Shown text** field that replaces the default "Reach..." / "Approach...". The popup text has its own multi-line box in the editor.

@@ -5,7 +5,7 @@
 ## Notes-deDE: Erstelle eigene Quests für Rollenspiel und persönliche Ziele, mit automatischer Verfolgung und wiederverwendbaren Vorlagen.
 ## Notes-frFR: Créez vos propres quêtes pour le jeu de rôle et vos objectifs personnels, avec suivi automatique et modèles réutilisables.
 ## Author: Xavi
-## Version: 0.7.0
+## Version: 0.8.0
 ## IconTexture: Interface\AddOns\CustomQuests\Media\Icon
 ## SavedVariables: CustomQuestsDB
 ## SavedVariablesPerCharacter: CustomQuestsCharDB
