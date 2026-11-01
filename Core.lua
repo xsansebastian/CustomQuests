@@ -118,7 +118,8 @@ end
 frame:SetScript("OnEvent", function(_, event, ...)
     -- Nothing to update until SavedVariables are loaded.
     if event ~= "ADDON_LOADED" and not Model.char then return end
-    handlers[event](...)
+    local handler = handlers[event]
+    if handler then handler(...) end
 end)
 for event in pairs(handlers) do frame:RegisterEvent(event) end
 

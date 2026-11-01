@@ -173,6 +173,8 @@ L["EXPORT_CHAIN_HINT"] = "Chaîne complète (%d quêtes). Copiez avec Ctrl+C."
 L["IMPORT_TITLE"] = "Importer un modèle"
 L["IMPORT_HINT"] = "Collez un texte CQ1: et cliquez sur Importer."
 L["IMPORTED"] = "Modèle importé : %s"
+L["IMPORT_DUPLICATE"] = "Déjà dans vos modèles, pas ajouté une seconde fois : %s"
+L["ERR_TOO_MANY_TEMPLATES"] = "Vous avez trop de modèles. Supprimez-en avant d'en importer d'autres."
 
 -- Errors
 L["ERR_NO_TEMPLATE"] = "Ce modèle n'existe plus."

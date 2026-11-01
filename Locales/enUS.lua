@@ -174,6 +174,8 @@ L["EXPORT_CHAIN_HINT"] = "Whole chain (%d quests). Copy with Ctrl+C."
 L["IMPORT_TITLE"] = "Import template"
 L["IMPORT_HINT"] = "Paste a CQ1: text and click Import."
 L["IMPORTED"] = "Template imported: %s"
+L["IMPORT_DUPLICATE"] = "Already in your templates, not added again: %s"
+L["ERR_TOO_MANY_TEMPLATES"] = "You have too many templates. Delete some before importing more."
 
 -- Errors
 L["ERR_NO_TEMPLATE"] = "That template no longer exists."

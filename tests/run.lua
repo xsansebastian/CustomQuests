@@ -723,5 +723,61 @@ test("Sections: a hostile section name in an import is cleaned", function()
     eq(entries[1].section, "cffff0000Evilr")
 end)
 
+-- Imports and duplicates -----------------------------------------------------------
+
+test("Importing the same template twice keeps one copy and says so", function()
+    local id = quest("Twice")
+    local text = Serializer.ExportChain(id)
+    local ids, skipped = Model.SaveImported(assert(Serializer.Import(text)), fake.now)
+    eq(ids[1], id, "the existing template stands in")
+    eq(skipped[1], true)
+    eq(#Model.ListTemplates(), 1)
+    -- Edited a little: it is a different quest now, so it is saved.
+    local tpl = Model.GetTemplate(id)
+    tpl.description = "changed"
+    local ids2, skipped2 = Model.SaveImported(assert(Serializer.Import(text)), fake.now)
+    eq(skipped2[1], nil)
+    assert(ids2[1] ~= id)
+    eq(#Model.ListTemplates(), 2)
+end)
+
+test("A chain whose first quest exists links the new ones to it", function()
+    local ids = chainOf(3)
+    local text = Serializer.ExportChain(ids[1])
+    Model.DeleteTemplate(ids[3])
+    Model.DeleteTemplate(ids[2])
+    local newIDs, skipped = Model.SaveImported(assert(Serializer.Import(text)), fake.now)
+    eq(skipped[1], true)
+    eq(newIDs[1], ids[1])
+    eq(Model.GetTemplate(newIDs[2]).requires, ids[1])
+    eq(Model.GetTemplate(newIDs[3]).requires, newIDs[2])
+    eq(#Model.ListTemplates(), 3)
+end)
+
+test("Fingerprint ignores where a template lives, not what it says", function()
+    local a = Model.ValidateTemplate(template({ { type = "manual", text = "x" } }))
+    local b = Util.DeepCopy(a)
+    b.section, b.requires, b.createdAt = "s-1", "t-1", 5
+    eq(Model.Fingerprint(a), Model.Fingerprint(b))
+    b.title = "Other"
+    assert(Model.Fingerprint(a) ~= Model.Fingerprint(b))
+    eq(Model.Fingerprint({}), nil)
+end)
+
+test("Imports stop at the template cap", function()
+    local old = Model.MAX_TEMPLATES
+    Model.MAX_TEMPLATES = 2
+    quest("One")
+    local text = Serializer.ExportChain(quest("Two"))
+    local fresh = Serializer.Encode(Model.ValidateTemplate(template({ { type = "manual", text = "x" } }, { title = "Three" })))
+    local ok, err = pcall(function()
+        eq(select(2, Model.SaveImported(assert(Serializer.Import(fresh)), fake.now)), "ERR_TOO_MANY_TEMPLATES")
+        eq(Model.SaveImported(assert(Serializer.Import(text)), fake.now)[1] ~= nil, true, "a duplicate costs nothing")
+    end)
+    Model.MAX_TEMPLATES = old
+    assert(ok, err)
+    eq(#Model.ListTemplates(), 2)
+end)
+
 print(("%d passed, %d failed"):format(passed, failed))
 if failed > 0 then os.exit(1) end

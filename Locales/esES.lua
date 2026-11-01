@@ -173,6 +173,8 @@ L["EXPORT_CHAIN_HINT"] = "Cadena completa (%d misiones). Cópiala con Ctrl+C."
 L["IMPORT_TITLE"] = "Importar plantilla"
 L["IMPORT_HINT"] = "Pega un texto CQ1: y pulsa Importar."
 L["IMPORTED"] = "Plantilla importada: %s"
+L["IMPORT_DUPLICATE"] = "Ya está en tus plantillas, no se añade otra vez: %s"
+L["ERR_TOO_MANY_TEMPLATES"] = "Tienes demasiadas plantillas. Borra alguna antes de importar más."
 
 -- Errors
 L["ERR_NO_TEMPLATE"] = "Esa plantilla ya no existe."

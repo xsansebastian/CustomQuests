@@ -173,6 +173,8 @@ L["EXPORT_CHAIN_HINT"] = "Ganze Kette (%d Quests). Mit Strg+C kopieren."
 L["IMPORT_TITLE"] = "Vorlage importieren"
 L["IMPORT_HINT"] = "Füge einen CQ1:-Text ein und klicke auf Importieren."
 L["IMPORTED"] = "Vorlage importiert: %s"
+L["IMPORT_DUPLICATE"] = "Schon in deinen Vorlagen, nicht erneut hinzugefügt: %s"
+L["ERR_TOO_MANY_TEMPLATES"] = "Du hast zu viele Vorlagen. Lösche einige, bevor du weitere importierst."
 
 -- Errors
 L["ERR_NO_TEMPLATE"] = "Diese Vorlage existiert nicht mehr."

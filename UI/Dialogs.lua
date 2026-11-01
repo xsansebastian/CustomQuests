@@ -182,6 +182,14 @@ function Dialogs.ShowSectionExport(sectionID)
     edit:HighlightText()
 end
 
+-- One chat line per imported quest; the ones already saved say so instead.
+function Dialogs.ReportImported(entries, skipped)
+    for i, entry in ipairs(entries) do
+        local key = skipped and skipped[i] and "IMPORT_DUPLICATE" or "IMPORTED"
+        ns.api.Print(L[key]:format(UI.QuestText(entry.template.title)))
+    end
+end
+
 function Dialogs.ShowImport(onImported)
     if not window then create() end
     window.TitleText:SetText(L["IMPORT_TITLE"])
@@ -194,11 +202,13 @@ function Dialogs.ShowImport(onImported)
             status:SetText("|cffff4040" .. (L[err] or err) .. "|r")
             return
         end
-        local ids = Model.SaveImported(entries, ns.api.Now())
-        window:Hide()
-        for _, entry in ipairs(entries) do
-            ns.api.Print(L["IMPORTED"]:format(UI.QuestText(entry.template.title)))
+        local ids, skippedOrErr = Model.SaveImported(entries, ns.api.Now())
+        if not ids then
+            status:SetText("|cffff4040" .. UI.ErrorText(skippedOrErr) .. "|r")
+            return
         end
+        window:Hide()
+        Dialogs.ReportImported(entries, skippedOrErr)
         if onImported then onImported(ids[1]) end
     end)
     window:Show()

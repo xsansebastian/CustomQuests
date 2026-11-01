@@ -303,18 +303,87 @@ function Model.GetChain(id)
     return ordered
 end
 
+-- A canonical text for a value: same content, same text (keys sorted).
+local function canonical(value, out)
+    local kind = type(value)
+    if kind == "table" then
+        local keys = {}
+        for k in pairs(value) do keys[#keys + 1] = k end
+        table.sort(keys, function(a, b)
+            if type(a) == type(b) then return a < b end
+            return type(a) == "number"
+        end)
+        out[#out + 1] = "{"
+        for _, k in ipairs(keys) do
+            canonical(k, out)
+            out[#out + 1] = "="
+            canonical(value[k], out)
+            out[#out + 1] = ","
+        end
+        out[#out + 1] = "}"
+    elseif kind == "string" then
+        out[#out + 1] = "s" .. #value .. ":" .. value
+    else
+        out[#out + 1] = kind:sub(1, 1) .. tostring(value)
+    end
+end
+
+-- What a template says, without where it lives: the chain link, the section
+-- and the creation time are left out. Two templates with the same fingerprint
+-- are the same quest. nil for an invalid template.
+function Model.Fingerprint(tpl)
+    local clean = Model.ValidateTemplate(tpl)
+    if not clean then return nil end
+    clean.requires, clean.section = nil, nil
+    local out = {}
+    canonical(clean, out)
+    return table.concat(out)
+end
+
+-- Most templates an account may hold; imports (pasted or shared) stop here so
+-- nobody can fill the SavedVariables by sending the same pack again and again.
+Model.MAX_TEMPLATES = 1000
+
+function Model.CountTemplates()
+    local n = 0
+    for _ in pairs(Model.account.templates) do n = n + 1 end
+    return n
+end
+
 -- Saves imported templates; entry.requires is an index into entries and
 -- entry.section a section name, matched with an existing section or created.
--- Returns the new ids in the same order.
+-- A template identical to one already saved is not saved again: its slot takes
+-- the existing id and skipped[i] is true. Returns ids (in the same order) and
+-- skipped, or nil and an error key when the new ones would pass MAX_TEMPLATES.
 function Model.SaveImported(entries, now)
-    local ids = {}
-    for i, entry in ipairs(entries) do
-        local tpl = Util.DeepCopy(entry.template)
-        tpl.requires = entry.requires and ids[entry.requires] or nil
-        tpl.section = entry.section and Model.FindOrCreateSection(entry.section, now) or nil
-        ids[i] = Model.SaveTemplate(tpl, nil, now)
+    local known = {}
+    for id, tpl in pairs(Model.account.templates) do
+        local fp = Model.Fingerprint(tpl)
+        -- Several identical templates may exist already: keep the oldest id.
+        if fp and (not known[fp] or id < known[fp]) then known[fp] = id end
     end
-    return ids
+    local fresh = 0
+    for _, entry in ipairs(entries) do
+        if not known[Model.Fingerprint(entry.template) or ""] then fresh = fresh + 1 end
+    end
+    if fresh > 0 and Model.CountTemplates() + fresh > Model.MAX_TEMPLATES then
+        return nil, "ERR_TOO_MANY_TEMPLATES"
+    end
+    local ids, skipped = {}, {}
+    for i, entry in ipairs(entries) do
+        local fp = Model.Fingerprint(entry.template)
+        if fp and known[fp] then
+            ids[i], skipped[i] = known[fp], true
+        else
+            local tpl = Util.DeepCopy(entry.template)
+            tpl.requires = entry.requires and ids[entry.requires] or nil
+            tpl.section = entry.section and Model.FindOrCreateSection(entry.section, now) or nil
+            ids[i] = Model.SaveTemplate(tpl, nil, now)
+            -- Two identical entries in one import are saved once.
+            if fp and ids[i] then known[fp] = ids[i] end
+        end
+    end
+    return ids, skipped
 end
 
 -- Deleting a link keeps the chain whole: follow-ups inherit its prerequisite.
