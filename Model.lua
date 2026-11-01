@@ -754,21 +754,27 @@ function Model.GroupBySection(items, getSection, collapsed, showEmpty)
     return out
 end
 
--- True when the template matches the search text: every word of the query must
+-- True when text contains every word of query (ignoring case); an empty query
+-- matches anything. MatchesSearch applies it to a whole template: every word of the query must
 -- appear (ignoring case) in its title, its section's name or the text of a stage.
 -- An empty query matches everything.
-function Model.MatchesSearch(tpl, query)
+function Model.MatchesText(text, query)
     query = (query or ""):lower():match("^%s*(.-)%s*$")
     if query == "" then return true end
+    text = text:lower()
+    for word in query:gmatch("%S+") do
+        if not text:find(word, 1, true) then return false end
+    end
+    return true
+end
+
+function Model.MatchesSearch(tpl, query)
+    if (query or ""):match("^%s*$") then return true end
     local parts = { tpl.title }
     local section = Model.SectionByID(Model.SectionOf(tpl))
     if section then parts[#parts + 1] = section.name end
     for _, stage in ipairs(tpl.stages or {}) do parts[#parts + 1] = stage.text end
-    local haystack = table.concat(parts, " "):lower()
-    for word in query:gmatch("%S+") do
-        if not haystack:find(word, 1, true) then return false end
-    end
-    return true
+    return Model.MatchesText(table.concat(parts, " "), query)
 end
 
 -- The Templates list with section headers: header entries as above, followed

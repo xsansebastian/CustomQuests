@@ -1583,6 +1583,8 @@ test("Search: words match title, section name and stage text; a filter hides emp
     local function matches(id, q) return Model.MatchesSearch(Model.GetTemplate(id), q) end
     eq(matches(a, ""), true, "empty query matches everything")
     eq(matches(a, "  "), true)
+    eq(Model.MatchesText("Patrol the Road", "ROAD patrol"), true, "plain text, as the history list uses it")
+    eq(Model.MatchesText("Patrol the Road", "kettle"), false)
     eq(matches(a, "HERBS kettle"), true, "every word, any case, any order")
     eq(matches(a, "herbs road"), false, "all words must match")
     eq(matches(a, "flowers"), true, "stage text")
