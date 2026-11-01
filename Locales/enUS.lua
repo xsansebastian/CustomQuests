@@ -19,7 +19,7 @@ L["TURNIN_COMPLETE_SHORT"] = "Complete"
 L["TURNIN_DEFAULT"] = "You have met every objective."
 L["F_COMPLETION"] = "Quest completed text"
 L["STAGE_ADVANCED"] = "%s: stage %d/%d"
-L["TRACKER_TOOLTIP"] = "Shift+drag to move. Left-click opens the journal, right-click collapses. Click a quest title to fold or unfold it."
+L["TRACKER_TOOLTIP"] = "Shift+drag to move. Left-click opens the journal. Right-click the header to collapse all, or a quest title to fold that quest."
 
 -- Journal
 L["TAB_ACTIVE"] = "Active"

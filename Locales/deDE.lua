@@ -18,7 +18,7 @@ L["TURNIN_COMPLETE_SHORT"] = "Abschließen"
 L["TURNIN_DEFAULT"] = "Du hast alle Ziele erreicht."
 L["F_COMPLETION"] = "Text bei Questabschluss"
 L["STAGE_ADVANCED"] = "%s: Abschnitt %d/%d"
-L["TRACKER_TOOLTIP"] = "Umschalt+Ziehen zum Verschieben. Linksklick öffnet das Questbuch, Rechtsklick klappt ein. Klick auf einen Questtitel klappt die Quest ein oder aus."
+L["TRACKER_TOOLTIP"] = "Umschalt+Ziehen zum Verschieben. Linksklick öffnet das Questbuch. Rechtsklick auf die Kopfzeile klappt alles ein, auf einen Questtitel klappt diese Quest ein oder aus."
 
 -- Journal
 L["TAB_ACTIVE"] = "Aktiv"

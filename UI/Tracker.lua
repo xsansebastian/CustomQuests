@@ -35,7 +35,7 @@ local function stopMove()
     savePosition()
 end
 
--- Quest title: click folds or unfolds that quest. Shift+drag moves the tracker.
+-- Quest title: right-click folds or unfolds that quest. Shift+drag moves the tracker.
 local function getTitle(i)
     local b = titleButtons[i]
     if not b then
@@ -46,6 +46,7 @@ local function getTitle(i)
         b.text:SetWidth(WIDTH - 30)
         b:SetWidth(WIDTH - 30)
         b:RegisterForDrag("LeftButton")
+        b:RegisterForClicks("RightButtonUp")
         b:SetScript("OnDragStart", startMove)
         b:SetScript("OnDragStop", stopMove)
         b:SetScript("OnClick", function(self)
