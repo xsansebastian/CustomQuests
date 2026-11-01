@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Chains are easier to build: in Templates, "Add next quest" creates the next quest already linked after the selected one. The editor field now reads "Unlocks after completing", the list of quests is a tree, and a line under it shows the whole chain path.
 - Only the first quest of a chain can be accepted by hand. The others start on their own when the previous one is turned in; their Accept button is off and the list says so.
 - A quest that belongs to a chain stays out of the tracker until the one before it has been turned in.
 - Templates list: chains are now a tree. The first quest of a chain is its title, the rest hang below it (folding with the +/- button), and follow-ups of follow-ups nest further down.

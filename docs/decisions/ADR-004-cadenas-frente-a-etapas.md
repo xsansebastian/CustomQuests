@@ -41,3 +41,8 @@ Para rol, una campaña por capítulos necesita que cada capítulo tenga su propi
 - Los IDs de plantilla son locales a cada cuenta, así que el export reescribe los enlaces como índices (ver ADR-003).
 - Una plantilla editada después de aceptada no afecta a la misión en curso (se guarda una copia al aceptar); el cambio sí aplica al siguiente eslabón que se acepte.
 - La lista de plantillas marca en gris las bloqueadas, y el detalle muestra «Requiere…» y «Siguiente en la cadena…».
+
+## Actualización
+- Las cadenas se crean ahora hacia delante desde el detalle de la plantilla: el botón «Añadir siguiente misión» abre el editor con una misión nueva ya enlazada (hereda el tipo de la anterior).
+- El campo del editor se lee «Se desbloquea al completar», el desplegable lista las plantillas como un árbol (los seguimientos sangrados) y bajo él se muestra el camino de la cadena («Cadena: A » B » Esta misión») con las misiones que vienen después.
+- Se consideró y se descartó un selector «Suelta / En cadena»: añade un estado más que mantener sincronizado con `requires`. También un editor de cadenas dedicado: es la entidad «cadena» ya rechazada arriba.

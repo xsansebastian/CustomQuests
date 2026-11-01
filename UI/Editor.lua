@@ -261,22 +261,56 @@ local function labeled(parent, text, widget, x, y)
     return widget
 end
 
--- Templates this one may follow: all others except those that would loop.
+-- Templates this one may follow, laid out like the Templates tree: each
+-- follow-up indented under the quest it follows. Leaves out this quest and
+-- everything after it, since those would loop.
 local function chainItems()
     local items = { { value = false, text = L["CHAIN_NONE"] } }
-    for _, entry in ipairs(Model.ListTemplates()) do
-        if entry.id ~= draftID and not (draftID and Model.WouldCycle(draftID, entry.id)) then
-            items[#items + 1] = { value = entry.id, text = UI.QuestText(entry.template.title),
-                icon = UI.QuestIconMarkup(UI.QuestKind(entry.template, entry.id), "available", 14) }
+    for _, node in ipairs(Model.TemplateTree()) do
+        if node.id ~= draftID and not (draftID and Model.WouldCycle(draftID, node.id)) then
+            local t = Model.GetTemplate(node.id)
+            local indent = node.depth > 0 and (("    "):rep(node.depth - 1) .. "  » ") or ""
+            items[#items + 1] = { value = node.id, text = indent
+                .. UI.QuestIconMarkup(UI.QuestKind(t, node.id), "available", 14) .. " " .. UI.QuestText(t.title) }
         end
     end
     return items
 end
 
+-- Where the quest sits: "A » B » This quest", then the quests that follow it.
+local function chainSummary()
+    local names = {}
+    local current = draft.requires
+    for _ = 1, 30 do
+        local t = current and Model.GetTemplate(current)
+        if not t then break end
+        table.insert(names, 1, UI.QuestText(t.title))
+        current = t.requires
+    end
+    local nexts = {}
+    for _, id in ipairs(draftID and Model.GetFollowUps(draftID) or {}) do
+        nexts[#nexts + 1] = UI.QuestText(Model.GetTemplate(id).title)
+    end
+    if #names == 0 and #nexts == 0 then return L["CHAIN_SOLO"] end
+    local this = draft.title ~= "" and UI.QuestText(draft.title) or L["CHAIN_THIS"]
+    names[#names + 1] = "|cffffd200" .. this .. "|r"
+    local text = L["CHAIN_PATH"]:format(table.concat(names, " » "))
+    if #nexts > 0 then text = text .. "\n" .. L["CHAIN_NEXT_LIST"]:format(table.concat(nexts, ", ")) end
+    return text
+end
+
+local function refreshChain()
+    if not draft or not fields.chainPath then return end
+    fields.chainPath:SetText(chainSummary())
+end
+
 local function createGeneralPanel(panel)
     fields.title = labeled(panel, L["F_TITLE"], UI.CreateEditBox(panel, 270), 0, -4)
     fields.title:SetMaxLetters(Model.MAX_TITLE)
-    fields.title:SetScript("OnTextChanged", function(self) draft.title = self:GetText() end)
+    fields.title:SetScript("OnTextChanged", function(self)
+        draft.title = self:GetText()
+        refreshChain()
+    end)
 
     fields.giver = labeled(panel, L["F_GIVER"], UI.CreateEditBox(panel, 160), 290, -4)
     fields.giver:SetMaxLetters(Model.MAX_TITLE)
@@ -307,9 +341,16 @@ local function createGeneralPanel(panel)
     -- Chain: the quest that must be completed before this one.
     fields.requires = labeled(panel, L["F_REQUIRES"], UI.CreateDropdown(panel, 360, chainItems,
         function() return draft.requires end,
-        function(value) draft.requires = value or nil end), 0, -108)
+        function(value)
+            draft.requires = value or nil
+            refreshChain()
+        end), 0, -108)
+    fields.chainPath = UI.CreateLabel(panel, "", "GameFontHighlight")
+    fields.chainPath:SetPoint("TOPLEFT", fields.requires, "BOTTOMLEFT", 0, -8)
+    fields.chainPath:SetWidth(WIDTH - 60)
+    fields.chainPath:SetSpacing(3)
     local hint = UI.CreateLabel(panel, L["CHAIN_HINT"], "GameFontDisableSmall")
-    hint:SetPoint("TOPLEFT", fields.requires, "BOTTOMLEFT", 0, -6)
+    hint:SetPoint("TOPLEFT", fields.chainPath, "BOTTOMLEFT", 0, -8)
     hint:SetWidth(WIDTH - 60)
 end
 
@@ -427,6 +468,7 @@ local function loadDraft()
     fields.kind:Refresh()
     fields.repeatMode:Refresh()
     fields.requires:Refresh()
+    refreshChain()
     fields.minLevel:SetText(draft.minLevel and tostring(draft.minLevel) or "")
     fields.maxLevel:SetText(draft.maxLevel and tostring(draft.maxLevel) or "")
     fields.description:SetText(draft.description or "")
@@ -545,11 +587,17 @@ local function create()
 end
 
 -- Opens a working copy; nothing is saved until "Save" passes validation.
-function Editor.Open(templateID)
+-- prerequisiteID: a new quest that comes next in that quest's chain.
+function Editor.Open(templateID, prerequisiteID)
     if not window then create() end
     local template = templateID and Model.GetTemplate(templateID)
     draft = template and Util.DeepCopy(template) or Model.NewEmptyTemplate()
     draftID = template and templateID or nil
+    local prerequisite = not template and prerequisiteID and Model.GetTemplate(prerequisiteID)
+    if prerequisite then
+        draft.requires = prerequisiteID
+        draft.kind = prerequisite.kind
+    end
     stageIndex = 1
     loadDraft()
     showTab("general")
