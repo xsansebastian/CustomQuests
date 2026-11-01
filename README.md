@@ -4,9 +4,13 @@
 
 **Write your own quests. Track them like the real thing.**
 
-CustomQuests lets you create quests for roleplay and for your own goals, with a quest journal, an on-screen tracker and a turn-in window that look and feel like the game's own. Write a five-part campaign for your guild's RP night, or a "20 Iron Ore" reminder for your next farming session: the addon follows your progress on its own, and you can share any quest as a short piece of text.
+CustomQuests lets you create quests for roleplay and for your own goals, with a quest journal, an on-screen tracker and a turn-in window that look and feel like the game's own. Write a five-part campaign for your guild's RP night, or a "20 Iron Ore" reminder for your next farming session: the addon follows your progress on its own, and you can share any quest as a short piece of text, or send it straight to another player, your party or your guild.
 
 One package for **Retail** and **WoW Forever**. English, Spanish, German and French.
+
+**What it can do**
+- Objectives that follow themselves: items in your bags, kills, bosses, zones and subzones, a spot on the map, your level, **getting close to an NPC** (with a portrait popup and your own text), or a counter you press yourself.
+- **Share quests in game**: right-click a quest and send it to your target, your **party**, your guild or any player by name; they get a popup and choose to accept it. You can also share by text or as a chat link.
 
 ## Features
 
