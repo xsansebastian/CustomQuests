@@ -212,11 +212,15 @@ add("03-personal-goals", "Personal goals, a chain inside a section, zone and lev
             .. "from the fields of [color=20ff20]Elwynn[/color] to the deserts of Tanaris and the snows of Winterspring.",
         rewardText = "Sore feet and a map full of memories.",
         completionText = "Every road leads somewhere. Yours led all the way around the world.",
-        stages = { stage("Visit the old lands", {
-            zone(MAP.ELWYNN), zone(MAP.DUROTAR), zone(MAP.N_STRANGLETHORN), zone(MAP.TANARIS),
-            zone(MAP.UNGORO), zone(MAP.WINTERSPRING), subzone("Gadgetzan", MAP.TANARIS),
-            subzone("Marshal's Refuge", MAP.UNGORO),
-        }) },
+        stages = {
+            stage("Visit the old lands", {
+                zone(MAP.ELWYNN), zone(MAP.DUROTAR), zone(MAP.N_STRANGLETHORN), zone(MAP.TANARIS),
+                zone(MAP.UNGORO),
+            }),
+            stage("And the places in between", {
+                zone(MAP.WINTERSPRING), subzone("Gadgetzan", MAP.TANARIS), subzone("Marshal's Refuge", MAP.UNGORO),
+            }),
+        },
     })
     save({
         title = "Grand Tour: Beyond the Horizon", kind = "personal", repeatMode = "none", requires = tour,
@@ -270,7 +274,7 @@ end)
 -- 4. Every objective type, across three stages -------------------------------------------------------------
 add("04-trials-of-the-wanderer", "Tracker with many objective types, editor Objectives tab",
     "One roleplay quest in three stages using every objective type: item, kill (NPC and any enemy), "
-    .. "subzone, location and manual in stage 1; zone, subzone, kill and level in stage 2; boss and manual in "
+    .. "subzone and location in stage 1; zone, subzone, kill and level in stage 2; boss and manual in "
     .. "stage 3. No section, so it shows under \"Other quests\".", function()
     return save({
         title = "Trials of the Wanderer", kind = "rp", repeatMode = "none", giver = "Archivist Elowen Brightquill",
@@ -287,7 +291,6 @@ add("04-trials-of-the-wanderer", "Tracker with many objective types, editor Obje
                 killAny(MAP.ELWYNN, 8),
                 subzone("Goldshire", MAP.ELWYNN),
                 location(MAP.ELWYNN, 0.43, 0.66, 0.03),
-                manual("Share a drink with a stranger at the inn"),
             }),
             stage("The trial of the road", {
                 zone(MAP.TANARIS),
@@ -297,6 +300,7 @@ add("04-trials-of-the-wanderer", "Tracker with many objective types, editor Obje
             }),
             stage("The trial of legend", {
                 boss(ENCOUNTER.RAGNAROS, "Ragnaros"),
+                manual("Share a drink with a stranger at the inn"),
                 manual("Tell the tale to Elowen"),
             }),
         },

@@ -197,6 +197,32 @@ test("Boss, zone and location objectives", function()
     eq(Lifecycle.Get(qid), nil, "completed")
 end)
 
+test("Near objectives latch when the NPC is close, and labels are kept", function()
+    local qid = accept({ { type = "near", npcID = 3188, name = "Shang'gok", label = "Habla con el viejo", dialog = "Hola" } })
+    local quest = Lifecycle.Get(qid)
+    eq(#Objectives.FindNear(Model.char.active, 3188), 1)
+    eq(#Objectives.FindNear(Model.char.active, 1), 0)
+    eq(Objectives.UpdateNear(Model.char.active, { [999] = true }), false)
+    eq(quest.progress[1], nil)
+    eq(Objectives.NeedsNearPolling(Model.char.active), true)
+    eq(Objectives.UpdateNear(Model.char.active, nil), false)
+    local reached = {}
+    Objectives.onNear = function(obj) reached[#reached + 1] = obj.dialog end
+    eq(Objectives.UpdateNear(Model.char.active, { [3188] = true }), true)
+    eq(#reached, 1)
+    eq(#Objectives.FindNear(Model.char.active, 3188), 0, "done objectives stop showing in tooltips")
+    eq(reached[1], "Hola")
+    Objectives.onNear = nil
+    eq(quest.progress[1], 1)
+    eq(Objectives.UpdateNear(Model.char.active, {}), false, "stays done after walking away")
+    eq(Objectives.NeedsNearPolling(Model.char.active), false)
+    eq(Objectives.CurrentStage(quest).objectives[1].label, "Habla con el viejo")
+    eq(select(2, Model.ValidateTemplate(template({ { type = "near", name = "x" } }))), "ERR_NEED_NPC")
+    local loc = Model.ValidateObjective({ type = "location", mapID = 1, x = 0.5, y = 0.5, label = "   " })
+    eq(loc.label, nil, "blank labels are dropped")
+    eq(Model.ValidateObjective({ type = "location", mapID = 1, x = 0.5, y = 0.5, label = "Sigue al guía" }).label, "Sigue al guía")
+end)
+
 test("Stages advance and a satisfied next stage completes at once", function()
     local id = assert(Model.SaveTemplate({ title = "Chain", stages = {
         { objectives = { { type = "manual", text = "a", count = 1 } } },
@@ -312,11 +338,13 @@ end)
 test("Explorer sample visits ten zones and completes from sub-maps", function()
     Samples.InstallAll()
     local qid = assert(Lifecycle.Accept(Samples.EXPLORER_ID))
-    eq(#Lifecycle.Get(qid).template.stages[1].objectives, 10)
+    eq(#Lifecycle.Get(qid).template.stages, 2, "five zones a stage")
+    eq(#Lifecycle.Get(qid).template.stages[1].objectives, 5)
     local zones = { 37, 1, 50, 71, 78, 83, 23, 107, 118, 371 }
     fake.maps[9999] = 371 -- a sub-map inside the Jade Forest
     for i = 1, 9 do fake.map = zones[i] settle() end
-    eq(Lifecycle.Get(qid).progress[9], 1)
+    eq(Lifecycle.Get(qid).stage, 2)
+    eq(Lifecycle.Get(qid).progress[4], 1)
     fake.map = 9999
     settle()
     turnIn(qid)

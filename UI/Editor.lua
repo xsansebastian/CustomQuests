@@ -10,12 +10,15 @@ ns.Editor = Editor
 local WIDTH, HEIGHT = 620, 540 -- also the smallest size the window can take
 local MAX_SIZE = { 1100, 900 }
 local ROW_HEIGHT = 34
-local MAX_FIELDS = 4
+local DIALOG_HEIGHT = 110 -- the popup text box under a "near" objective
+local SCROLLBAR = 26 -- room the objectives list leaves for its scroll bar
+local MAX_FIELDS = 5
 local TABS = { "general", "texts", "objectives" }
 
 local window, fields, stageLabel, stageText, errorText
 local panels, tabButtons = {}, {}
 local objectiveRows = {}
+local objectivesScroll, objectivesContent -- the objectives list scrolls
 local draft, draftID, stageIndex
 local innerWidth = WIDTH - 40 -- width of what fills a panel; follows the window
 local textAreas = {} -- the Texts tab boxes that stretch with the window
@@ -31,7 +34,10 @@ local FIELD_SPECS = {
     zone = { { "mapID", "F_MAP", 70, "number" } },
     subzone = { { "name", "F_SUBZONE", 170, "string" }, { "mapID", "F_MAP", 60, "number" } },
     location = { { "mapID", "F_MAP", 55, "number" }, { "x", "F_X", 45, "number", 100 },
-                 { "y", "F_Y", 45, "number", 100 }, { "radius", "F_RADIUS", 45, "number", 100 } },
+                 { "y", "F_Y", 45, "number", 100 }, { "radius", "F_RADIUS", 45, "number", 100 },
+                 { "label", "F_LABEL", 100, "string" } },
+    near = { { "npcID", "F_NPC", 55, "number" }, { "name", "F_NAME", 90, "string" },
+             { "label", "F_LABEL", 200, "string" } },
     level = { { "level", "F_LEVEL", 50, "number" } },
     manual = { { "text", "F_TEXT", 240, "string" }, { "count", "F_COUNT", 45, "number" } },
 }
@@ -57,6 +63,11 @@ end
 -- Helper actions fill fields from the game: target, map, position, last boss.
 local HELPERS = {
     kill = { "H_TARGET", function(obj)
+        local npcID, name = ns.api.GetTargetNPC()
+        if not npcID then ns.api.Print(L["ERR_NO_TARGET"]) return end
+        obj.npcID, obj.name = npcID, name or obj.name
+    end },
+    near = { "H_TARGET", function(obj)
         local npcID, name = ns.api.GetTargetNPC()
         if not npcID then ns.api.Print(L["ERR_NO_TARGET"]) return end
         obj.npcID, obj.name = npcID, name or obj.name
@@ -102,10 +113,9 @@ end
 local renderObjectives
 
 local function createObjectiveRow(i)
-    local panel = panels.objectives
-    local row = CreateFrame("Frame", nil, panel)
-    row:SetSize(innerWidth, ROW_HEIGHT)
-    row:SetPoint("TOPLEFT", 0, -40 - (i - 1) * ROW_HEIGHT)
+    local row = CreateFrame("Frame", nil, objectivesContent)
+    row:SetSize(innerWidth - SCROLLBAR, ROW_HEIGHT)
+    row:SetPoint("TOPLEFT", 0, -(i - 1) * ROW_HEIGHT)
 
     row.type = UI.CreateDropdown(row, 100, function() return TYPE_ITEMS end,
         function() local obj = currentStage().objectives[row.index] return obj and obj.type end,
@@ -142,6 +152,19 @@ local function createObjectiveRow(i)
         row.labels[f]:SetPoint("BOTTOMLEFT", e, "TOPLEFT", -4, 0)
     end
 
+    -- Popup text of a "near" objective: its own box under the row, with a scroll bar.
+    row.dialog, row.dialogEdit = UI.CreateTextArea(row, innerWidth - SCROLLBAR - 20, DIALOG_HEIGHT)
+    row.dialog:SetPoint("TOPLEFT", row, "BOTTOMLEFT", 4, -16)
+    row.dialog.label = UI.CreateLabel(row.dialog, L["F_DIALOG"], "GameFontDisableSmall")
+    row.dialog.label:SetPoint("BOTTOMLEFT", row.dialog, "TOPLEFT", 0, 2)
+    row.dialogEdit:SetMaxLetters(Model.MAX_TEXT)
+    row.dialogEdit:SetScript("OnTextChanged", function(self, userInput)
+        if not userInput then return end
+        local obj = currentStage().objectives[row.index]
+        if obj then obj.dialog = self:GetText() end
+    end)
+    row.dialogEdit:SetScript("OnEditFocusGained", function(self) row.focused = self end)
+
     row.fallback = CreateFrame("CheckButton", nil, row, "UICheckButtonTemplate")
     row.fallback:SetSize(22, 22)
     row.fallback:SetScript("OnClick", function(self)
@@ -173,10 +196,20 @@ function renderObjectives()
     stageText:SetText(stage.text or "")
     for _, row in ipairs(objectiveRows) do row:Hide() end
 
+    local top = 0
     for i, obj in ipairs(stage.objectives) do
         local row = objectiveRows[i] or createObjectiveRow(i)
         row.index = i
+        row:ClearAllPoints()
+        row:SetPoint("TOPLEFT", 0, -top)
+        top = top + ROW_HEIGHT + (obj.type == "near" and DIALOG_HEIGHT + 22 or 0)
         row:Show()
+        row.dialog:SetShown(obj.type == "near")
+        if obj.type == "near" then
+            row.dialog:SetHeight(DIALOG_HEIGHT)
+            row.dialogEdit:SetText(obj.dialog or "")
+            row.dialogEdit:SetCursorPosition(0)
+        end
         row.type:Refresh()
 
         local prev = row.type
@@ -218,10 +251,19 @@ function renderObjectives()
             end)
         end
     end
+    objectivesContent:SetHeight(math.max(1, top + 8))
     fields.addObjective:SetEnabled(#stage.objectives < Model.MAX_OBJECTIVES)
 end
 
 local function createObjectivesPanel(panel)
+    -- The objectives sit in a scroll area under the stage line.
+    objectivesScroll = CreateFrame("ScrollFrame", nil, panel, "UIPanelScrollFrameTemplate")
+    objectivesScroll:SetPoint("TOPLEFT", 0, -40)
+    objectivesScroll:SetPoint("BOTTOMRIGHT", -SCROLLBAR + 6, 0)
+    objectivesContent = CreateFrame("Frame", nil, objectivesScroll)
+    objectivesContent:SetSize(innerWidth - SCROLLBAR, 1)
+    objectivesScroll:SetScrollChild(objectivesContent)
+
     stageLabel = UI.CreateLabel(panel, "", "GameFontNormal")
     stageLabel:SetPoint("TOPLEFT", 0, -6)
     stageText = UI.CreateEditBox(panel, 280)
@@ -497,7 +539,10 @@ end
 -- goes half to the description and half to the preview.
 local function layout(w, h)
     innerWidth = w - 40
-    for _, row in ipairs(objectiveRows) do row:SetWidth(innerWidth) end
+    for _, row in ipairs(objectiveRows) do
+        row:SetWidth(innerWidth - SCROLLBAR)
+        row.dialog:SetWidth(innerWidth - SCROLLBAR - 20)
+    end
     fields.chainPath:SetWidth(innerWidth - 20)
     fields.chainHint:SetWidth(innerWidth - 20)
 
@@ -513,6 +558,7 @@ local function layout(w, h)
         area.label:SetPoint("TOPLEFT", 0, tops[name])
     end
     preview:SetSize(innerWidth - 20, heights.preview - 16)
+    objectivesContent:SetWidth(innerWidth - SCROLLBAR)
 end
 
 local function loadDraft()

@@ -51,6 +51,21 @@ function api.HookItemTooltip(fn)
     return true
 end
 
+-- Calls fn(tooltip, npcID) after the game fills the tooltip of an NPC. A secret
+-- identity is skipped.
+function api.HookUnitTooltip(fn)
+    if not (TooltipDataProcessor and TooltipDataProcessor.AddTooltipPostCall and Enum and Enum.TooltipDataType) then
+        return false
+    end
+    TooltipDataProcessor.AddTooltipPostCall(Enum.TooltipDataType.Unit, function(tooltip, data)
+        local guid = data and data.guid
+        if type(guid) ~= "string" or api.IsSecret(guid) then return end
+        local npcID = ns.Util.NPCIDFromGUID(guid)
+        if npcID then fn(tooltip, npcID) end
+    end)
+    return true
+end
+
 function api.GetItemName(itemID)
     if C_Item and C_Item.GetItemNameByID then return C_Item.GetItemNameByID(itemID) end
     return (GetItemInfo(itemID))
@@ -120,6 +135,46 @@ function api.GetTargetNPC()
     local name = UnitName("target")
     if api.IsSecret(name) then name = nil end
     return ns.Util.NPCIDFromGUID(guid), name
+end
+
+-- Set of npcIDs of the NPCs the player is close to right now: the soft
+-- interaction target, plus target, mouseover and visible nameplates within
+-- interaction range. Identities that are secret are skipped.
+local function unitNPCID(unit)
+    if not UnitExists(unit) or UnitIsPlayer(unit) then return nil end
+    local guid = UnitGUID(unit)
+    if not guid or api.IsSecret(guid) then return nil end
+    return ns.Util.NPCIDFromGUID(guid)
+end
+
+local function inReach(unit, index)
+    local ok, near = pcall(CheckInteractDistance, unit, index)
+    return ok and near and not api.IsSecret(near)
+end
+
+function api.GetNearbyNPCs()
+    local npcs = {}
+    local function add(unit, index)
+        local npcID = unitNPCID(unit)
+        if npcID and (not index or inReach(unit, index)) then npcs[npcID] = true end
+    end
+    add("npc") -- the one the player is talking to
+    add("softinteract") -- only set when the player is within interaction range
+    add("target", 3)
+    add("mouseover", 3)
+    if C_NamePlate and C_NamePlate.GetNamePlates then
+        local ok, plates = pcall(C_NamePlate.GetNamePlates)
+        if ok and type(plates) == "table" then
+            for _, plate in ipairs(plates) do
+                if plate.namePlateUnitToken then add(plate.namePlateUnitToken, 3) end
+            end
+        end
+    end
+    return npcs
+end
+
+function api.IsChatBoxOpen()
+    return ChatEdit_GetActiveWindow ~= nil and ChatEdit_GetActiveWindow() ~= nil
 end
 
 function api.GetPlayerLevel()

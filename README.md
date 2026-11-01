@@ -27,7 +27,7 @@ One package for **Retail** and **WoW Forever**. English, Spanish, German and Fre
 ### In-game editor
 - Title, quest giver, type (Roleplay or Personal), repeat mode, level range, section and chain link.
 - Description, reward and completion texts with a **colour toolbar**, buttons for the `{name}`, `{class}` and `{race}` tokens, and a **live preview**.
-- Up to 20 stages per quest and 10 objectives per stage.
+- Up to 20 stages per quest and 5 objectives per stage.
 - A **Help** button explains where each ID comes from, and helper buttons fill fields in for you (see [Finding IDs](#finding-ids)).
 
 ### Objective types
@@ -39,6 +39,7 @@ One package for **Retail** and **WoW Forever**. English, Spanish, German and Fre
 | **Zone** | You enter a zone | Also counts from any area inside that zone. |
 | **Subzone** | You reach a named place (the name under the minimap) | For example a town or camp inside a zone. Names follow your game language. |
 | **Location** | You stand close to a spot on the map | Radius in percent of the map. |
+| **Near NPC** | You get close to an NPC | Talking to it, its soft interaction target, or your target, mouseover or a nameplate within about 10 yards. Optional popup text and portrait. Not inside instances, where the game hides who an NPC is. |
 | **Level** | Your character reaches a level | |
 | **Manual** | You count it yourself | For roleplay steps such as "Talk to the innkeeper". |
 
@@ -107,7 +108,8 @@ Want to see some examples first? `/cq sample` adds a couple of ready-made quests
 - **Kill**: target the NPC and press **Target** to fill in its ID and name.
 - **Boss**: defeat the boss once, then press **Last boss** to fill in the encounter.
 - **Zone and Subzone**: stand there and press **This map** or **This subzone**.
-- **Location**: stand on the spot and press **My spot**, then set the radius.
+- **Location**: stand on the spot and press **My spot**, then set the radius. **Shown text** replaces "Reach...".
+- **Near NPC**: target the NPC and press **Target**. **Shown text** replaces "Approach..."; **Popup text** opens a window with the NPC's portrait when you get close.
 - `/cq debug` prints the map ID you are on and the last boss encounter.
 
 ## Sharing quests
@@ -124,7 +126,7 @@ Want to see some examples first? `/cq sample` adds a couple of ready-made quests
 - Select a template and click **Export**. If it belongs to a chain, the whole chain is exported. To share a section, right-click its header > **Export section**.
 - Copy the text with Ctrl+C and send it.
 - The other player opens `/cq` > **Templates** > **Import**, pastes it and clicks **Import**.
-- Limits: 16 KB of text, 20 stages per quest, 10 objectives per stage, 50 quests per chain or section.
+- Limits: 16 KB of text, 20 stages per quest, 5 objectives per stage, 50 quests per chain or section.
 
 ## Tips
 

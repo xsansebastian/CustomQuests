@@ -6,14 +6,14 @@ ns.Model = Model
 
 Model.SCHEMA = 1
 Model.MAX_STAGES = 20
-Model.MAX_OBJECTIVES = 10
+Model.MAX_OBJECTIVES = 5
 Model.MAX_TEXT = 500
 Model.MAX_TITLE = 80
 Model.MAX_SECTIONS = 50
 Model.MAX_SECTION_NAME = 40
 Model.NO_SECTION = "_none" -- key for the quests that belong to no section
 
-Model.OBJECTIVE_TYPES = { "item", "kill", "boss", "zone", "subzone", "location", "level", "manual" }
+Model.OBJECTIVE_TYPES = { "item", "kill", "boss", "zone", "subzone", "location", "near", "level", "manual" }
 Model.KINDS = { "personal", "rp" }
 Model.REPEAT_MODES = { "none", "daily", "weekly" }
 
@@ -29,7 +29,8 @@ local OBJECTIVE_FIELDS = {
     boss     = { encounterID = "number", name = "string", count = "number" },
     zone     = { mapID = "number" },
     subzone  = { name = "string", mapID = "number" }, -- name as shown on the minimap
-    location = { mapID = "number", x = "number", y = "number", radius = "number" },
+    location = { mapID = "number", x = "number", y = "number", radius = "number", label = "string" },
+    near     = { npcID = "number", name = "string", label = "string", dialog = "string" }, -- close to an NPC; label: text shown instead of the default
     level    = { level = "number" },
     manual   = { text = "string", count = "number" },
 }
@@ -72,6 +73,7 @@ function Model.ValidateObjective(obj)
     local t = clean.type
     if t == "item" and not clean.itemID then return nil, "ERR_NEED_ITEM" end
     if t == "kill" and not clean.npcID and not clean.mapID then return nil, "ERR_NEED_NPC_OR_MAP" end
+    if t == "near" and not clean.npcID then return nil, "ERR_NEED_NPC" end
     if t == "boss" and not clean.encounterID then return nil, "ERR_NEED_ENCOUNTER" end
     if t == "subzone" and clean.name and clean.name:match("^%s*$") then clean.name = nil end
     if t == "subzone" and not clean.name then return nil, "ERR_NEED_SUBZONE" end
@@ -80,6 +82,8 @@ function Model.ValidateObjective(obj)
     if t == "manual" and (not clean.text or clean.text == "") then return nil, "ERR_NEED_TEXT" end
     if t == "level" and not clean.level then return nil, "ERR_NEED_LEVEL" end
 
+    if clean.label and clean.label:match("^%s*$") then clean.label = nil end
+    if clean.dialog and clean.dialog:match("^%s*$") then clean.dialog = nil end
     if clean.count then clean.count = clamp(math.floor(clean.count), 1, 100000) end
     if t == "item" or t == "kill" or t == "boss" or t == "manual" then clean.count = clean.count or 1 end
     if t == "level" then clean.level = clamp(math.floor(clean.level), 1, 200) end

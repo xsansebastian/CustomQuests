@@ -9,6 +9,7 @@ ns.Journal = Journal
 local WIDTH, HEIGHT = 660, 460
 local LIST_DEFAULT, MIN_LIST = 230, 170
 local listPref = LIST_DEFAULT -- the width the player chose for the tree panel
+local HIDE_DONE_WIDTH = 28 -- room the "hide completed" checkbox takes beside the search box
 local listWidth = LIST_DEFAULT -- listPref, kept inside what the window allows
 local ROW_HEIGHT = 38
 local HEADER_HEIGHT = 24 -- section header bar
@@ -19,7 +20,7 @@ local META_GAP = 10 -- space between the detail title and the line under it
 local window, list, detail
 local tabButtons = {}
 -- main: the last of Active/History shown, so the swap button still has a meaning on Templates.
-local state = { tab = "active", main = "active", selected = {}, checked = {}, searches = {} } -- selected[tab] = id; checked[id] = true
+local state = { tab = "active", main = "active", selected = {}, checked = {}, searches = {}, hideCompleted = false } -- selected[tab] = id; checked[id] = true
 local CHECK_WIDTH = 20 -- room the Templates checkbox takes in front of each row
 
 -- The view the swap button leads to: the one of Active/History you are not in.
@@ -60,7 +61,7 @@ local function getRow(i)
         Journal.Refresh()
     end)
     row.icon = row:CreateTexture(nil, "ARTWORK")
-    row.icon:SetSize(20, 20)
+    row.icon:SetSize(26, 26)
     row.icon:SetPoint("LEFT", 4, 0)
     row.title = UI.CreateLabel(row, "", "GameFontNormal")
     -- Text is anchored to the row, not the icon, so the two lines keep their distance.
@@ -72,7 +73,7 @@ local function getRow(i)
     row.sub:SetWidth(listWidth - 40)
     row.sub:SetWordWrap(false)
     -- Right-click on a template (Templates) or an active quest (Active): its
-    -- menu (share, export...). Shift-click puts a link to it in the open chat box.
+    -- menu (share, export...). Shift-click puts a link to it in the open chat box (on Active, with none open, it tracks or untracks).
     row:RegisterForClicks("LeftButtonUp", "RightButtonUp")
     row:SetScript("OnClick", function(self, mouse)
         if mouse == "RightButton" then
@@ -85,6 +86,11 @@ local function getRow(i)
             end
         end
         if IsShiftKeyDown() then
+            -- Like the game's log: on Active it tracks or untracks, unless a chat box is open to receive the link.
+            if state.tab == "active" and not ns.api.IsChatBoxOpen() then
+                Lifecycle.SetTracked(self.id, not Model.char.tracked[self.id])
+                return
+            end
             local templateID = state.tab == "templates" and self.id
                 or state.tab == "active" and Journal.ActiveTemplateID(self.id)
             if templateID then
@@ -177,8 +183,10 @@ local function buildEntries()
     elseif state.tab == "templates" then
         -- Chains are a tree: the first quest is the chain's title, the rest hang below it.
         -- While searching, folded sections and chains stay open so no match is hidden.
-        local filter = searching and function(id)
-            return Model.MatchesSearch(Model.account.templates[id], searchText())
+        local hideDone = state.hideCompleted
+        local filter = (searching or hideDone) and function(id)
+            if hideDone and Lifecycle.HasCompleted(id) then return false end
+            return not searching or Model.MatchesSearch(Model.account.templates[id], searchText())
         end or nil
         local sectionFolds = searching and {} or Model.account.sectionCollapsed
         local chainFolds = searching and {} or Model.account.chainCollapsed
@@ -253,13 +261,13 @@ local function refreshList(entries)
                     or "Interface\\Buttons\\UI-MinusButton-Up")
             end
             row.icon:ClearAllPoints()
-            row.icon:SetPoint("LEFT", row, "LEFT", 18 + indent, 0)
+            row.icon:SetPoint("LEFT", row, "LEFT", 16 + indent, 0)
             row.title:ClearAllPoints()
-            row.title:SetPoint("TOPLEFT", row, "TOPLEFT", 44 + indent, -5)
-            row.title:SetWidth(listWidth - 50 - indent)
+            row.title:SetPoint("TOPLEFT", row, "TOPLEFT", 46 + indent, -5)
+            row.title:SetWidth(listWidth - 52 - indent)
             row.sub:ClearAllPoints()
-            row.sub:SetPoint("BOTTOMLEFT", row, "BOTTOMLEFT", 44 + indent, 5)
-            row.sub:SetWidth(listWidth - 50 - indent)
+            row.sub:SetPoint("BOTTOMLEFT", row, "BOTTOMLEFT", 46 + indent, 5)
+            row.sub:SetWidth(listWidth - 52 - indent)
             row.title:SetText(entry.title)
             row.sub:SetText(entry.sub)
             row.selectedTex:SetShown(entry.id == state.selected[state.tab])
@@ -460,8 +468,8 @@ local function showTitleIcon(kind, iconState, questID, ready)
     detail.turnin.questID, detail.turnin.ready = questID, ready
     detail.turnin:Show()
     detail.title:ClearAllPoints()
-    detail.title:SetPoint("TOPLEFT", 28, 0)
-    detail.title:SetWidth(detailWidth - 28)
+    detail.title:SetPoint("TOPLEFT", 34, 0)
+    detail.title:SetWidth(detailWidth - 34)
     detail.meta:ClearAllPoints()
     detail.meta:SetPoint("TOPLEFT", detail.title, "BOTTOMLEFT", -28, -META_GAP)
 end
@@ -675,6 +683,22 @@ local function create()
     end)
     tabButtons.search = search
 
+    -- To the right of the search box (Templates only): hides the quests this character has completed.
+    local hideDone = CreateFrame("CheckButton", nil, window, "UICheckButtonTemplate")
+    hideDone:SetSize(24, 24)
+    hideDone:SetPoint("LEFT", search, "RIGHT", 2, 0)
+    hideDone:SetScript("OnClick", function(self)
+        state.hideCompleted = self:GetChecked() and true or false
+        Journal.Refresh()
+    end)
+    hideDone:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        GameTooltip:SetText(L["HIDE_COMPLETED"])
+        GameTooltip:Show()
+    end)
+    hideDone:SetScript("OnLeave", GameTooltip_Hide)
+    tabButtons.hideDone = hideDone
+
     list = {}
     list.scroll, list.content = createScroll(window, listWidth - 4)
     list.scroll:SetPoint("TOPLEFT", 12, -60)
@@ -710,10 +734,11 @@ local function create()
     detail.title:SetWidth(detailWidth)
     -- Yellow "?" next to the title of a quest that is ready: opens the turn-in window.
     detail.turnin = CreateFrame("Button", nil, detail.content)
-    detail.turnin:SetSize(22, 22)
+    detail.turnin:SetSize(28, 28)
     detail.turnin:SetPoint("TOPLEFT", 0, 0)
     detail.turnin.tex = detail.turnin:CreateTexture(nil, "ARTWORK")
-    detail.turnin.tex:SetAllPoints()
+    detail.turnin.tex:SetPoint("CENTER")
+    detail.turnin.tex:SetSize(28, 28)
     detail.turnin:SetHighlightTexture("Interface\\Buttons\\ButtonHilight-Square", "ADD")
     detail.turnin:SetScript("OnClick", function(self) if self.ready then ns.TurnIn.Open(self.questID) end end)
     detail.turnin:SetScript("OnEnter", function(self)
@@ -742,7 +767,7 @@ local function create()
         list.content:SetWidth(listWidth - 4)
         list.scroll:SetWidth(listWidth - 4)
         list.empty:SetWidth(listWidth - 20)
-        tabButtons.search:SetWidth(listWidth - 12)
+        tabButtons.search:SetWidth(listWidth - 12 - (state.tab == "templates" and HIDE_DONE_WIDTH or 0))
         for _, row in ipairs(rows) do row:SetWidth(listWidth - 4) end
         divider:ClearAllPoints()
         divider:SetPoint("TOPLEFT", listWidth + 30, -60)
@@ -817,6 +842,9 @@ function Journal.Refresh()
     tabButtons.templates:SetShown(not onTemplates)
     tabButtons.swap:SetText(onTemplates and L["BACK"] or L["TAB_" .. swapTarget():upper()])
     for _, b in ipairs(tabButtons.templateActions) do b:SetShown(onTemplates) end
+    tabButtons.hideDone:SetShown(onTemplates)
+    tabButtons.hideDone:SetChecked(state.hideCompleted)
+    tabButtons.search:SetWidth(listWidth - 12 - (onTemplates and HIDE_DONE_WIDTH or 0))
     -- While editing, Delete takes the left of the row and Edit shrinks to "Done".
     local editing = onTemplates and state.editing
     tabButtons.delete:SetShown(editing)
