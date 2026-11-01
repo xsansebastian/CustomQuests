@@ -212,7 +212,9 @@ function Tracker.Refresh()
 
     local tracked = {}
     for _, entry in ipairs(Lifecycle.List()) do
-        if entry.quest.state == "active" and Model.char.tracked[entry.id] then tracked[#tracked + 1] = entry end
+        if entry.quest.state == "active" and Model.char.tracked[entry.id] and Lifecycle.IsUnlocked(entry.quest) then
+            tracked[#tracked + 1] = entry
+        end
     end
     if #tracked == 0 then frame:Hide() return end
     frame:Show()

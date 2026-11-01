@@ -40,6 +40,17 @@ function Lifecycle.HasCompleted(templateID)
     return false
 end
 
+-- False for a quest that belongs to a chain while its predecessor hasn't been
+-- turned in (or is being done again): it is kept out of the tracker until then.
+function Lifecycle.IsUnlocked(quest)
+    local template = Model.GetTemplate(quest.templateID) or quest.template
+    local requires = template.requires
+    if not requires or not Model.GetTemplate(requires) then return true end
+    if not Lifecycle.HasCompleted(requires) then return false end
+    local _, running = Lifecycle.FindByTemplate(requires)
+    return not (running and running.state == "active")
+end
+
 -- Returns true, or nil plus an error key from ns.L and its format argument.
 function Lifecycle.CanAccept(templateID)
     local template = Model.GetTemplate(templateID)

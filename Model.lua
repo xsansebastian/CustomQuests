@@ -202,6 +202,7 @@ function Model.InitDB(accountDB, charDB)
     accountDB.templates = accountDB.templates or {}
     accountDB.history = accountDB.history or {}
     accountDB.recentIcons = nil -- the icon picker is gone
+    accountDB.chainCollapsed = type(accountDB.chainCollapsed) == "table" and accountDB.chainCollapsed or {}
     accountDB.minimap = accountDB.minimap or { angle = 225, hidden = false }
     accountDB.options = Model.CleanOptions(accountDB.options)
     charDB.schema = charDB.schema or Model.SCHEMA
@@ -303,6 +304,60 @@ function Model.ListTemplates()
     for id, tpl in pairs(Model.account.templates) do list[#list + 1] = { id = id, template = tpl } end
     table.sort(list, function(a, b) return a.template.title:lower() < b.template.title:lower() end)
     return list
+end
+
+-- The templates as a tree for the Templates list: standalone quests and chain
+-- roots at depth 0, each follow-up one level below the quest it follows.
+-- collapsed[id] hides the follow-ups of that quest. Rows: { id, depth,
+-- hasChildren, collapsed, count } where count is the size of the whole subtree.
+function Model.TemplateTree(collapsed)
+    collapsed = collapsed or {}
+    local entries = Model.ListTemplates()
+    local order = {}
+    for i, entry in ipairs(entries) do order[entry.id] = i end
+
+    local function children(id)
+        local list = Model.GetFollowUps(id)
+        table.sort(list, function(a, b) return (order[a] or 0) < (order[b] or 0) end)
+        return list
+    end
+
+    local reached = {}
+    local function size(id, depth)
+        if reached[id] or depth > 30 then return 0 end
+        reached[id] = true
+        local total = 1
+        for _, child in ipairs(children(id)) do total = total + size(child, depth + 1) end
+        return total
+    end
+
+    local rows, shown = {}, {}
+    local function walk(id, depth)
+        if shown[id] or depth > 30 then return end
+        shown[id] = true
+        local kids = children(id)
+        local row = { id = id, depth = depth, hasChildren = #kids > 0, collapsed = collapsed[id] and #kids > 0 or false }
+        rows[#rows + 1] = row
+        if row.collapsed then return end
+        for _, child in ipairs(kids) do walk(child, depth + 1) end
+    end
+
+    local roots = {}
+    for _, entry in ipairs(entries) do
+        local requires = entry.template.requires
+        if not (requires and Model.account.templates[requires]) then roots[#roots + 1] = entry.id end
+    end
+    -- A broken loop has no root: its members still show up, as roots.
+    for _, id in ipairs(roots) do size(id, 0) end
+    for _, entry in ipairs(entries) do
+        if not reached[entry.id] then roots[#roots + 1] = entry.id size(entry.id, 0) end
+    end
+    for _, id in ipairs(roots) do walk(id, 0) end
+    for _, row in ipairs(rows) do
+        reached = {}
+        row.count = size(row.id, 0)
+    end
+    return rows
 end
 
 function Model.NewEmptyTemplate()

@@ -35,6 +35,17 @@ local function getRow(i)
     row.selectedTex = row:CreateTexture(nil, "BACKGROUND")
     row.selectedTex:SetAllPoints()
     row.selectedTex:SetColorTexture(1, 0.82, 0, 0.15)
+    -- Fold button for quests that have follow-ups in a chain.
+    row.toggle = CreateFrame("Button", nil, row)
+    row.toggle:SetSize(14, 14)
+    row.toggle:SetScript("OnClick", function(self)
+        local id = self:GetParent().id
+        local collapsed = Model.account.chainCollapsed
+        collapsed[id] = not collapsed[id] or nil
+        -- A fold that hides the selected quest selects the one that stays.
+        if collapsed[id] then state.selected.templates = id end
+        Journal.Refresh()
+    end)
     row.icon = row:CreateTexture(nil, "ARTWORK")
     row.icon:SetSize(20, 20)
     row.icon:SetPoint("LEFT", 4, 0)
@@ -89,15 +100,18 @@ local function buildEntries()
                 title = UI.QuestText(q.template.title), sub = sub }
         end
     elseif state.tab == "templates" then
-        for _, e in ipairs(Model.ListTemplates()) do
-            local t = e.template
+        -- Chains are a tree: the first quest is the chain's title, the rest hang below it.
+        for _, node in ipairs(Model.TemplateTree(Model.account.chainCollapsed)) do
+            local t = Model.GetTemplate(node.id)
             local sub = kindLabel(t.kind) .. " · " .. repeatLabel(t.repeatMode)
-            local ok, err = Lifecycle.CanAccept(e.id)
+            if node.hasChildren and node.depth == 0 then sub = L["CHAIN_COUNT"]:format(node.count) .. " · " .. sub end
+            local ok, err = Lifecycle.CanAccept(node.id)
             if not ok and (err == "ERR_LOCKED" or err == "ERR_LEVEL_LOW" or err == "ERR_LEVEL_HIGH") then
                 sub = "|cff808080" .. sub .. " · " .. L["LOCKED_SHORT"] .. "|r"
             end
-            entries[#entries + 1] = { id = e.id, kind = UI.QuestKind(t, e.id), iconState = "available",
-                title = UI.QuestText(t.title), sub = sub }
+            entries[#entries + 1] = { id = node.id, kind = UI.QuestKind(t, node.id), iconState = "available",
+                title = UI.QuestText(t.title), sub = sub, depth = node.depth, hasChildren = node.hasChildren,
+                collapsed = node.collapsed }
         end
     else
         for i, row in ipairs(Lifecycle.GetHistorySummary()) do
@@ -119,6 +133,23 @@ local function refreshList(entries)
             row.icon:SetTexture(entry.icon)
             row.icon:SetTexCoord(0, 1, 0, 1)
         end
+        -- Indent by depth; the fold button sits in front of quests with follow-ups.
+        local indent = (entry.depth or 0) * 14
+        row.toggle:ClearAllPoints()
+        row.toggle:SetPoint("LEFT", row, "LEFT", 2 + indent, 0)
+        row.toggle:SetShown(entry.hasChildren or false)
+        if entry.hasChildren then
+            row.toggle:SetNormalTexture(entry.collapsed and "Interface\\Buttons\\UI-PlusButton-Up"
+                or "Interface\\Buttons\\UI-MinusButton-Up")
+        end
+        row.icon:ClearAllPoints()
+        row.icon:SetPoint("LEFT", row, "LEFT", 18 + indent, 0)
+        row.title:ClearAllPoints()
+        row.title:SetPoint("TOPLEFT", row, "TOPLEFT", 44 + indent, -5)
+        row.title:SetWidth(LIST_WIDTH - 50 - indent)
+        row.sub:ClearAllPoints()
+        row.sub:SetPoint("BOTTOMLEFT", row, "BOTTOMLEFT", 44 + indent, 5)
+        row.sub:SetWidth(LIST_WIDTH - 50 - indent)
         row.title:SetText(entry.title)
         row.sub:SetText(entry.sub)
         row.selectedTex:SetShown(entry.id == state.selected[state.tab])

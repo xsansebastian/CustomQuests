@@ -396,6 +396,48 @@ test("Chains can't loop", function()
     eq(select(2, Model.SaveTemplate(first, ids[1], fake.now)), "ERR_CHAIN_CYCLE")
 end)
 
+test("A chained quest stays hidden until its predecessor is turned in", function()
+    local ids = chainOf(2)
+    -- Accepted while free, then made part of a chain nobody has completed.
+    local free = assert(Model.SaveTemplate(template({ { type = "manual", text = "x" } }, { title = "Free" }), nil, fake.now))
+    local qid = assert(Lifecycle.Accept(free))
+    eq(Lifecycle.IsUnlocked(Lifecycle.Get(qid)), true, "no predecessor")
+    Model.account.templates[free].requires = ids[1]
+    eq(Lifecycle.IsUnlocked(Lifecycle.Get(qid)), false, "predecessor never completed")
+    -- Completing the predecessor unlocks it ...
+    local q1 = assert(Lifecycle.Accept(ids[1]))
+    Objectives.AdjustManual(Lifecycle.Get(q1), 1, 1)
+    settle()
+    turnIn(q1)
+    eq(Lifecycle.IsUnlocked(Lifecycle.Get(qid)), true, "predecessor turned in")
+    -- ... and doing the predecessor again locks it until that run is turned in.
+    local again = assert(Lifecycle.Accept(ids[1]))
+    eq(Lifecycle.IsUnlocked(Lifecycle.Get(qid)), false, "predecessor active again")
+    Objectives.AdjustManual(Lifecycle.Get(again), 1, 1)
+    settle()
+    turnIn(again)
+    eq(Lifecycle.IsUnlocked(Lifecycle.Get(qid)), true, "turned in again")
+end)
+
+test("The template tree nests chains under their first quest and honours folds", function()
+    local ids = chainOf(3) -- Part 1 > Part 2 > Part 3
+    local solo = assert(Model.SaveTemplate(template({ { type = "manual", text = "x" } }, { title = "Alone" }), nil, fake.now))
+    local function shape(rows)
+        local out = {}
+        for _, r in ipairs(rows) do out[#out + 1] = r.depth .. (r.hasChildren and "+" or "") end
+        return table.concat(out, ",")
+    end
+    local rows = Model.TemplateTree({})
+    eq(shape(rows), "0,0+,1+,2", "Alone, then the chain")
+    eq(rows[1].id, solo)
+    eq(rows[2].count, 3, "the chain root counts the whole chain")
+    eq(rows[3].count, 2)
+    eq(shape(Model.TemplateTree({ [ids[1]] = true })), "0,0+", "folded root hides the rest")
+    eq(Model.TemplateTree({ [ids[1]] = true })[2].collapsed, true)
+    eq(shape(Model.TemplateTree({ [ids[2]] = true })), "0,0+,1+", "folding a middle quest hides what follows it")
+    eq(shape(Model.TemplateTree({ [solo] = true })), "0,0+,1+,2", "folding a leaf does nothing")
+end)
+
 test("Exporting a chain carries every link and import rebuilds them", function()
     local ids = chainOf(3)
     local text = Serializer.ExportChain(ids[2])

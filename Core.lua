@@ -176,7 +176,7 @@ local function trackProgress()
     local seen, completed = {}, false
     for _, entry in ipairs(Lifecycle.List()) do
         local quest = entry.quest
-        if quest.state == "active" then
+        if quest.state == "active" and Lifecycle.IsUnlocked(quest) then
             seen[entry.id] = true
             local objs = Objectives.CurrentStage(quest).objectives
             local old = snapshots[entry.id] and snapshots[entry.id].values or {}
@@ -204,6 +204,7 @@ Util.On("QUESTS_CHANGED", trackProgress)
 -- All objectives done: the quest now waits to be turned in.
 Util.On("QUEST_READY", function(questID, quest)
     finishSnapshot(questID)
+    if not Lifecycle.IsUnlocked(quest) then return end -- a chained quest stays hidden until its turn comes
     local title = ns.UI.QuestText(quest.template.title)
     ns.api.Splash(L["QUEST_READY"]:format(title))
     ns.api.Print(L["QUEST_READY"]:format(title))
