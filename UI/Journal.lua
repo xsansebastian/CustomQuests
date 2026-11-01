@@ -328,23 +328,38 @@ local function bodyText(template, stageIndex)
     return table.concat(parts, "\n\n")
 end
 
+local BUTTON_WIDTH, BUTTON_GAP, BUTTON_ROW = 86, 6, 28
+local buttonCount = 0
+
+-- Lays the detail buttons out along the bottom, wrapping onto more rows when the
+-- detail panel is too narrow for them all, and keeps the text above them.
+local function layoutButtons()
+    local perRow = math.max(1, math.floor((detailWidth + BUTTON_GAP) / (BUTTON_WIDTH + BUTTON_GAP)))
+    local rowCount = math.max(1, math.ceil(buttonCount / perRow))
+    for i = 1, buttonCount do
+        local row, col = math.floor((i - 1) / perRow), (i - 1) % perRow
+        detail.buttons[i]:ClearAllPoints()
+        detail.buttons[i]:SetPoint("BOTTOMLEFT", detail.frame, "BOTTOMLEFT",
+            col * (BUTTON_WIDTH + BUTTON_GAP), (rowCount - 1 - row) * BUTTON_ROW)
+    end
+    detail.scroll:SetPoint("BOTTOMRIGHT", -24, 30 + (rowCount - 1) * BUTTON_ROW)
+end
+
 local function setButtons(specs)
     for _, b in ipairs(detail.buttons) do b:Hide() end
-    local prev
+    buttonCount = #specs
     for i, spec in ipairs(specs) do
         local b = detail.buttons[i]
         if not b then
-            b = UI.CreateButton(detail.frame, "", 86)
+            b = UI.CreateButton(detail.frame, "", BUTTON_WIDTH)
             detail.buttons[i] = b
         end
-        b:ClearAllPoints()
-        if prev then b:SetPoint("LEFT", prev, "RIGHT", 6, 0) else b:SetPoint("BOTTOMLEFT", detail.frame, "BOTTOMLEFT", 0, 0) end
         b:SetText(spec[1])
         b:SetEnabled(spec[3] ~= false)
         b:SetScript("OnClick", spec[2])
         b:Show()
-        prev = b
     end
+    layoutButtons()
 end
 
 -- Lays out title, meta, an optional widget and the body; returns the y after them.
@@ -657,6 +672,7 @@ local function create()
         detail.content:SetWidth(detailWidth)
         detail.meta:SetWidth(detailWidth)
         detail.body:SetWidth(detailWidth)
+        layoutButtons()
     end
 
     -- Drag the divider to change how wide the tree panel is.
