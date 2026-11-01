@@ -14,12 +14,16 @@ One package for **Retail** and **WoW Forever**. English, Spanish, German and Fre
 - **Active**: the quests you have accepted, with their story, current stage and objectives. Manual objectives get **+** and **−** buttons.
 - **Templates**: every quest you have written or imported, ready to accept. Chains show as a tree you can fold, and each template shows how many times you've completed it.
 - **History**: every quest you've completed, how many times and when last.
+- A **search box** above the list filters the current view as you type (each of Active, Templates and History keeps its own text). Every word must appear in the title, the section name or a stage's text.
+- On Templates, the checkbox next to the search box hides the quests this character has already completed.
+- Shift+click an Active quest to track or untrack it (with a chat box open it links the quest instead).
 - Templates and history are shared by all your characters; active quests belong to each character.
 - The journal, editor, turn-in and import/export windows can be resized from their bottom-right corner, and the journal's list divider can be dragged.
 
 ### Tracker
 - A floating tracker in the style of the game's objective tracker, with live progress and a header you can rename.
 - Right-click a quest title to fold it, or the header to fold everything. Left-click opens the journal.
+- Shift+click a quest title to stop tracking it (track it again from the journal).
 - Click **+** on a manual objective to count it (right-click to take one back).
 - Shift+drag moves it; hold Shift and drag the corner grip to resize it; the mouse wheel scrolls when the quests don't fit.
 - Appearance options: font (including SharedMedia fonts if you have them), text size, background colour and opacity, border style and colour, with a live preview (`/cq options`, or Options > AddOns > CustomQuests).
@@ -42,6 +46,10 @@ One package for **Retail** and **WoW Forever**. English, Spanish, German and Fre
 | **Near NPC** | You get close to an NPC | Talking to it, its soft interaction target, or your target, mouseover or a nameplate within about 10 yards. Optional popup text and portrait. Not inside instances, where the game hides who an NPC is. |
 | **Level** | Your character reaches a level | |
 | **Manual** | You count it yourself | For roleplay steps such as "Talk to the innkeeper". |
+
+### Tooltips
+- An item that an active quest asks for shows the quest and how many you have of how many it needs.
+- An NPC that a pending **Near NPC** objective is waiting for shows the quest and the objective's text.
 
 ### Stages and chains
 - **Stages** are steps inside one quest: one journal entry, one reward, one line in History. The next stage starts when the current one is done.
@@ -141,6 +149,7 @@ Want to see some examples first? `/cq sample` adds a couple of ready-made quests
 - **Retail** (12.x, interfaces 120001 and 120105) and **WoW Forever** (interface 16001), from one package. The addon detects the client when it loads and warns in chat on any other client.
 - Forever support is new and hasn't been fully tested in game yet: please report anything that doesn't work.
 - No libraries required. If LibSharedMedia is loaded by another addon, its fonts appear in the tracker options.
+- **Near NPC** objectives can't count inside instances: the game hides who an NPC is there, and the NPC has to be talked to, targeted, under the mouse, on a visible nameplate or next to you.
 - In instances the game hides which NPC died, so **Kill** objectives there count approximately (see Objective types). **Boss** objectives are exact.
 
 ## Installation
