@@ -1599,20 +1599,113 @@ test("Search: words match title, section name and stage text; a filter hides emp
     eq(#Model.SectionedTree({}, {}, function(id) return matches(id, "herbs") end), 1, "no sections: plain tree")
 end)
 
-test("Sources stay Lua 5.1: no goto or labels (WoW doesn't parse them, LuaJIT does)", function()
+-- WoW runs Lua 5.1, but these tests run on LuaJIT, which also accepts goto,
+-- labels and a few other 5.2+ extras. A file that uses one loads fine here and
+-- fails in the game (the whole file, silently). CI also runs `luac5.1 -p`; this
+-- is the same guard for local runs, without needing a 5.1 compiler.
+
+-- Returns the code of a Lua source with comments removed and strings emptied
+-- (so words inside them are not mistaken for code), plus the escapes found in
+-- strings that 5.1 does not have (\x, \z, \u).
+local function codeOnly(src)
+    local out, badEscapes = {}, {}
+    local i, n = 1, #src
+    local function longBracket(at)
+        local eqs = src:match("^%[(=*)%[", at)
+        if not eqs then return nil end
+        local close = "]" .. eqs .. "]"
+        local _, stop = src:find(close, at, true)
+        return stop or n
+    end
+    while i <= n do
+        local c = src:sub(i, i)
+        if src:sub(i, i + 1) == "--" then
+            local stop = longBracket(i + 2)
+            if stop then
+                i = stop + 1
+            else
+                i = (src:find("\n", i, true) or n + 1)
+            end
+        elseif c == "[" and longBracket(i) then
+            i = longBracket(i) + 1
+            out[#out + 1] = '""'
+        elseif c == '"' or c == "'" then
+            local j = i + 1
+            while j <= n and src:sub(j, j) ~= c do
+                if src:sub(j, j) == "\\" then
+                    local esc = src:sub(j + 1, j + 1)
+                    if esc == "x" or esc == "z" or esc == "u" then badEscapes[#badEscapes + 1] = "\\" .. esc end
+                    j = j + 1
+                end
+                j = j + 1
+            end
+            i = j + 1
+            out[#out + 1] = '""'
+        else
+            out[#out + 1] = c
+            i = i + 1
+        end
+    end
+    return table.concat(out), badEscapes
+end
+
+-- Names of the 5.2+ features found in a source, as a sorted list.
+local function lua52Features(src)
+    local code, badEscapes = codeOnly(src)
+    local found = {}
+    local function check(pattern, name)
+        if code:find(pattern) then found[#found + 1] = name end
+    end
+    check("%f[%w_]goto%f[^%w_]", "goto")
+    check("::[%a_][%w_]*::", "label")
+    check("//", "// operator")
+    check("<<", "<< operator")
+    check(">>", ">> operator")
+    check("[^~]~[^=]", "~ operator")
+    check("&", "& operator")
+    check("|", "| operator")
+    check("<%s*const%s*>", "<const>")
+    check("<%s*close%s*>", "<close>")
+    check("%f[%w_]utf8%.", "utf8 library")
+    check("%f[%w_]bit32%.", "bit32 library")
+    check("math%.type%f[^%w_]", "math.type")
+    check("table%.move%f[^%w_]", "table.move")
+    check("string%.pack%f[^%w_]", "string.pack")
+    for _, esc in ipairs(badEscapes) do found[#found + 1] = "string escape " .. esc end
+    table.sort(found)
+    return found
+end
+
+test("The Lua 5.2+ checker spots what 5.1 can't parse and ignores strings and comments", function()
+    eq(table.concat(lua52Features("for i = 1, 3 do if i then goto continue end ::continue:: end"), ","), "goto,label")
+    eq(table.concat(lua52Features("local x = 7 // 2 << 1 & 3 | 4 ~ 5"), ","), "& operator,// operator,<< operator,| operator,~ operator")
+    eq(table.concat(lua52Features("local t <const> = 1"), ","), "<const>")
+    eq(table.concat(lua52Features('local s = "\\x41\\z"'), ","), "string escape \\x,string escape \\z")
+    eq(table.concat(lua52Features("return utf8.len(s) + table.move(a, 1, 2, 3)"), ","), "table.move,utf8 library")
+    eq(#lua52Features([[
+        -- goto is mentioned here, and so is // and ::label::
+        --[==[ a long comment: goto x ]==]
+        local a = "goto // :: | &" .. 'and ~ <<'
+        local b = [=[ goto ]=]
+        if a ~= b and a <= b then return 1 end
+    ]]), 0, "words in comments and strings are not code, ~= and <= are fine")
+end)
+
+test("Every file in the TOC is plain Lua 5.1 (what the game parses)", function()
     local toc = assert(io.open("CustomQuests.toc", "rb"))
+    local count = 0
     for line in toc:lines() do
         local file = line:match("^(.-%.lua)%s*$")
         if file then
             local f = assert(io.open((file:gsub("\\", "/")), "rb"))
-            local text = f:read("*a")
+            local src = f:read("*a")
             f:close()
-            text = text:gsub("%-%-[^\n]*", ""):gsub('"[^"\n]*"', '""')
-            eq(text:find("%f[%w_]goto%f[^%w_]"), nil, file .. " uses goto")
-            eq(text:find("::[%a_][%w_]*::"), nil, file .. " has a label")
+            count = count + 1
+            eq(table.concat(lua52Features(src), ", "), "", file .. " uses Lua 5.2+ features")
         end
     end
     toc:close()
+    eq(count > 10, true, "the TOC lists the sources")
 end)
 
 print(("%d passed, %d failed"):format(passed, failed))
