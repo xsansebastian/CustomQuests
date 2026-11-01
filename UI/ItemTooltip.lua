@@ -8,8 +8,10 @@ local ItemTooltip = {}
 ns.ItemTooltip = ItemTooltip
 
 local function addLines(tooltip, itemID)
-    if not ns.Model.account or not ns.Model.account.options.itemTooltip then return end
+    ItemTooltip.seen = itemID
+    if not ns.Model.char then return end
     local found = ns.Objectives.FindItem(ns.Model.char.active, itemID)
+    ItemTooltip.hits = #found
     local first = true
     for _, hit in ipairs(found) do
         if ns.Lifecycle.IsUnlocked(hit.quest) then
@@ -23,13 +25,28 @@ local function addLines(tooltip, itemID)
             tooltip:AddDoubleLine(
                 L["TOOLTIP_QUEST"]:format(UI.QuestText(hit.quest.template.title)),
                 ("%d/%d"):format(have, goal),
-                1, 0.82, 0, done and 0.125 or 1, done and 1 or 1, done and 0.125 or 1)
+                1, 0.82, 0, done and 0.125 or 1, 1, done and 0.125 or 1)
         end
     end
 end
 
 function ItemTooltip.Init()
-    ns.api.HookItemTooltip(addLines)
+    ItemTooltip.hooked = ns.api.HookItemTooltip(addLines)
 end
 
-ItemTooltip.AddLines = addLines
+-- /cq debug prints this: is the hook in place, which item was seen last, and
+-- what do the active quests ask for.
+function ItemTooltip.Debug()
+    local print = ns.api.Print
+    print(("item tooltip hook: %s, last item seen: %s, quests matching it: %s"):format(
+        tostring(ItemTooltip.hooked), tostring(ItemTooltip.seen), tostring(ItemTooltip.hits)))
+    for _, quest in pairs(ns.Model.char.active) do
+        if quest.state == "active" then
+            for _, obj in ipairs(ns.Objectives.CurrentStage(quest).objectives) do
+                if obj.type == "item" then
+                    print(("%s asks for item %s"):format(quest.template.title, tostring(obj.itemID)))
+                end
+            end
+        end
+    end
+end
