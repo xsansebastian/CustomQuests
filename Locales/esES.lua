@@ -68,6 +68,12 @@ L["CHAIN_ACCEPTED"] = "Siguiente misión de la cadena: %s"
 L["CHAIN_UNLOCKED"] = "Desbloqueada: %s (%s)"
 L["CONFIRM_ABANDON"] = "¿Abandonar \"%s\"? Se perderá el progreso."
 L["CONFIRM_DELETE"] = "¿Borrar la plantilla \"%s\"? Las misiones activas de ella se mantienen."
+L["CONFIRM_DELETE_MANY"] = "¿Borrar %d plantillas? Las misiones activas de ellas se mantienen."
+L["CONFIRM_DELETE_BRANCH"] = "\"%s\" tiene misiones detrás en su cadena. ¿Borrar toda la rama o solo esta plantilla? Las misiones que le siguen se mantendrían, enlazadas con la anterior."
+L["CONFIRM_DELETE_BRANCH_MANY"] = "%d de las plantillas marcadas tienen misiones detrás en una cadena. ¿Borrar toda la rama o solo las marcadas? Las misiones que queden se mantendrían enlazadas con las anteriores."
+L["DELETE_BRANCH_ALL"] = "Toda la rama"
+L["DELETE_BRANCH_ONLY"] = "Solo marcadas"
+L["LIST_EDIT"] = "Editar lista"
 
 -- Objectives
 L["TYPE_ITEM"] = "Objeto"

@@ -483,5 +483,68 @@ test("Deleting a middle link reconnects the chain", function()
     eq(Model.GetTemplate(ids[3]).requires, ids[1])
 end)
 
+-- Chain A > B > (C > E, D); returns the ids by letter.
+local function branchedChain()
+    local function save(title, requires)
+        return assert(Model.SaveTemplate(template({ { type = "manual", text = title } },
+            { title = title, requires = requires }), nil, fake.now))
+    end
+    local a = save("A")
+    local b = save("B", a)
+    local c = save("C", b)
+    local d = save("D", b)
+    local e = save("E", c)
+    return { A = a, B = b, C = c, D = d, E = e }
+end
+
+local function sortedSet(ids)
+    local copy = { unpack(ids) }
+    table.sort(copy)
+    return table.concat(copy, ",")
+end
+
+test("GetDescendants lists everything after a quest in its chain", function()
+    local t = branchedChain()
+    eq(sortedSet(Model.GetDescendants(t.B)), sortedSet({ t.C, t.D, t.E }))
+    eq(#Model.GetDescendants(t.E), 0)
+end)
+
+test("GetDescendants stops on a loop", function()
+    local t = branchedChain()
+    Model.account.templates[t.A].requires = t.E -- forced loop A > B > C > E > A
+    eq(#Model.GetDescendants(t.B), 4, "every other member once, and it ends")
+end)
+
+test("NeedsBranchChoice is only true when a follow-up stays behind", function()
+    local t = branchedChain()
+    eq(Model.NeedsBranchChoice({ t.B, t.C, t.D, t.E }), false)
+    eq(Model.NeedsBranchChoice({ t.B }), true)
+    eq(Model.NeedsBranchChoice({ t.E }), false)
+end)
+
+test("DeleteTemplates with the branch removes everything after", function()
+    local t = branchedChain()
+    Model.DeleteTemplates({ t.B }, true)
+    eq(#Model.ListTemplates(), 1)
+    eq(Model.GetTemplate(t.A) ~= nil, true)
+end)
+
+test("DeleteTemplates without the branch relinks the follow-ups", function()
+    local t = branchedChain()
+    Model.DeleteTemplates({ t.B }, false)
+    eq(#Model.ListTemplates(), 4)
+    eq(Model.GetTemplate(t.C).requires, t.A)
+    eq(Model.GetTemplate(t.D).requires, t.A)
+    eq(Model.GetTemplate(t.E).requires, t.C)
+end)
+
+test("DeleteTemplates of parent and child together leaves the rest hanging in place", function()
+    local t = branchedChain()
+    Model.DeleteTemplates({ t.A, t.B }, false)
+    eq(Model.GetTemplate(t.C).requires, nil)
+    eq(Model.GetTemplate(t.D).requires, nil)
+    eq(Model.GetTemplate(t.E).requires, t.C)
+end)
+
 print(("%d passed, %d failed"):format(passed, failed))
 if failed > 0 then os.exit(1) end

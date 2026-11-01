@@ -14,7 +14,8 @@ local DETAIL_WIDTH = WIDTH - LIST_WIDTH - 90
 local window, list, detail
 local tabButtons = {}
 -- main: the last of Active/History shown, so the swap button still has a meaning on Templates.
-local state = { tab = "active", main = "active", selected = {} } -- selected[tab] = id
+local state = { tab = "active", main = "active", selected = {}, checked = {} } -- selected[tab] = id; checked[id] = true
+local CHECK_WIDTH = 20 -- room the Templates checkbox takes in front of each row
 
 -- The view the swap button leads to: the one of Active/History you are not in.
 local function swapTarget()
@@ -35,6 +36,14 @@ local function getRow(i)
     row.selectedTex = row:CreateTexture(nil, "BACKGROUND")
     row.selectedTex:SetAllPoints()
     row.selectedTex:SetColorTexture(1, 0.82, 0, 0.15)
+    -- Checkbox to pick templates for a multiple delete (Templates only).
+    row.check = CreateFrame("CheckButton", nil, row, "UICheckButtonTemplate")
+    row.check:SetSize(18, 18)
+    row.check:SetPoint("LEFT", row, "LEFT", 2, 0)
+    row.check:SetScript("OnClick", function(self)
+        state.checked[self:GetParent().id] = self:GetChecked() or nil
+        Journal.UpdateDeleteButton()
+    end)
     -- Fold button for quests that have follow-ups in a chain.
     row.toggle = CreateFrame("Button", nil, row)
     row.toggle:SetSize(14, 14)
@@ -136,7 +145,11 @@ local function refreshList(entries)
             row.icon:SetTexCoord(0, 1, 0, 1)
         end
         -- Indent by depth; the fold button sits in front of quests with follow-ups.
-        local indent = (entry.depth or 0) * 14
+        -- On Templates the checkbox comes first and pushes everything right.
+        local picking = state.tab == "templates" and state.editing
+        row.check:SetShown(picking)
+        row.check:SetChecked(picking and state.checked[entry.id] or false)
+        local indent = (entry.depth or 0) * 14 + (picking and CHECK_WIDTH or 0)
         row.toggle:ClearAllPoints()
         row.toggle:SetPoint("LEFT", row, "LEFT", 2 + indent, 0)
         row.toggle:SetShown(entry.hasChildren or false)
@@ -338,13 +351,7 @@ local function showTemplate(id)
         end, acceptErr ~= "ERR_CHAIN_AUTO" },
         { L["EDIT"], function() ns.Editor.Open(id) end },
         { L["EXPORT"], function() ns.Dialogs.ShowExport(id) end },
-        { DELETE, function()
-            ns.Dialogs.Confirm(L["CONFIRM_DELETE"]:format(UI.QuestText(template.title)), function()
-                Model.DeleteTemplate(id)
-                state.selected.templates = nil
-                Journal.Refresh()
-            end)
-        end },
+        { DELETE, function() ns.Dialogs.ConfirmDelete({ id }, Journal.AfterDelete) end },
     })
 end
 
@@ -419,7 +426,25 @@ local function create()
         end)
     end)
     importButton:SetPoint("RIGHT", newButton, "LEFT", -4, 0)
-    tabButtons.templateActions = { newButton, importButton }
+    -- Under the tree: "Edit list" turns on the checkboxes; then "Delete (N)" removes
+    -- the ticked templates and "Done" turns them off again.
+    local editButton = UI.CreateButton(window, L["LIST_EDIT"], LIST_WIDTH - 10, function()
+        state.editing = not state.editing
+        state.checked = {}
+        Journal.Refresh()
+    end)
+    editButton:SetPoint("BOTTOMRIGHT", window, "BOTTOMLEFT", LIST_WIDTH + 4, 12)
+    tabButtons.edit = editButton
+    local deleteButton = UI.CreateButton(window, DELETE, LIST_WIDTH - 114, function()
+        local ids = {}
+        for id in pairs(state.checked) do ids[#ids + 1] = id end
+        if #ids == 0 then return end
+        table.sort(ids)
+        ns.Dialogs.ConfirmDelete(ids, Journal.AfterDelete)
+    end)
+    deleteButton:SetPoint("BOTTOMLEFT", 14, 12)
+    tabButtons.delete = deleteButton
+    tabButtons.templateActions = { newButton, importButton, editButton }
 
     list = {}
     list.scroll, list.content = createScroll(window, LIST_WIDTH - 4)
@@ -474,13 +499,44 @@ local function create()
     Util.On("QUESTS_CHANGED", function() if window:IsShown() then Journal.Refresh() end end)
 end
 
+-- "Delete (N)" counts the ticked templates and is off when there are none.
+function Journal.UpdateDeleteButton()
+    local count = 0
+    for _ in pairs(state.checked) do count = count + 1 end
+    tabButtons.delete:SetText(count > 0 and (DELETE .. " (" .. count .. ")") or DELETE)
+    tabButtons.delete:SetEnabled(count > 0)
+end
+
+-- Runs once templates are deleted: nothing stays ticked or selected.
+function Journal.AfterDelete()
+    state.checked = {}
+    state.selected.templates = nil
+    Journal.Refresh()
+end
+
 function Journal.Refresh()
     if not window then return end
     local onTemplates = state.tab == "templates"
-    if not onTemplates then state.main = state.tab end
+    if not onTemplates then
+        state.main = state.tab
+        state.checked = {}
+        state.editing = false
+    end
+    -- Ticks of templates that no longer exist (deleted elsewhere) are dropped.
+    for id in pairs(state.checked) do
+        if not Model.GetTemplate(id) then state.checked[id] = nil end
+    end
+    Journal.UpdateDeleteButton()
     tabButtons.templates:SetShown(not onTemplates)
     tabButtons.swap:SetText(onTemplates and L["BACK"] or L["TAB_" .. swapTarget():upper()])
     for _, b in ipairs(tabButtons.templateActions) do b:SetShown(onTemplates) end
+    -- While editing, Delete takes the left of the row and Edit shrinks to "Done".
+    local editing = onTemplates and state.editing
+    tabButtons.delete:SetShown(editing)
+    tabButtons.edit:SetText(editing and DONE or L["LIST_EDIT"])
+    tabButtons.edit:SetWidth(editing and 100 or LIST_WIDTH - 10)
+    -- On Templates the tree is shorter to leave room for the buttons under it.
+    list.scroll:SetHeight(HEIGHT - (onTemplates and 106 or 76))
     window.TitleText:SetText("CustomQuests · " .. L["TAB_" .. state.tab:upper()])
     local entries = buildEntries()
     refreshList(entries)

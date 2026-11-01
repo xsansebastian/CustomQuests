@@ -298,6 +298,58 @@ function Model.DeleteTemplate(id)
     Model.account.templates[id] = nil
 end
 
+-- Every template that comes after id in its chain (follow-ups of follow-ups
+-- included), not id itself. Sorted for a stable order.
+function Model.GetDescendants(id)
+    local found, queue, seen = {}, { id }, { [id] = true }
+    local steps = 0
+    while #queue > 0 and steps < 1000 do
+        steps = steps + 1
+        local current = table.remove(queue, 1)
+        for _, nextID in ipairs(Model.GetFollowUps(current)) do
+            if not seen[nextID] then
+                seen[nextID] = true
+                found[#found + 1] = nextID
+                queue[#queue + 1] = nextID
+            end
+        end
+    end
+    table.sort(found)
+    return found
+end
+
+-- True if one of ids has a direct follow-up that isn't in ids: deleting it then
+-- needs a choice between the whole branch and just those templates.
+function Model.NeedsBranchChoice(ids)
+    local picked = {}
+    for _, id in ipairs(ids) do picked[id] = true end
+    for _, id in ipairs(ids) do
+        for _, nextID in ipairs(Model.GetFollowUps(id)) do
+            if not picked[nextID] then return true end
+        end
+    end
+    return false
+end
+
+-- Deletes several templates at once. With withBranch everything after each one
+-- goes too; without it their follow-ups are relinked, one deletion at a time.
+function Model.DeleteTemplates(ids, withBranch)
+    local doomed, order = {}, {}
+    local function add(id)
+        if not doomed[id] then
+            doomed[id] = true
+            order[#order + 1] = id
+        end
+    end
+    for _, id in ipairs(ids) do
+        add(id)
+        if withBranch then
+            for _, descendant in ipairs(Model.GetDescendants(id)) do add(descendant) end
+        end
+    end
+    for _, id in ipairs(order) do Model.DeleteTemplate(id) end
+end
+
 -- Sorted by title for stable lists.
 function Model.ListTemplates()
     local list = {}
