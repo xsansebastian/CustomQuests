@@ -5,6 +5,7 @@ ignore:
   - docs
   - assets
   - SPEC.md
+  - screenshots
   - .luarc.json
 
 manual-changelog:
