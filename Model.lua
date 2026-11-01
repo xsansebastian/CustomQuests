@@ -169,6 +169,57 @@ function Model.ValidateTemplate(tpl)
     return clean
 end
 
+-- Appearance options (tracker only) --------------------------------------------
+
+-- Fonts the game ships; SharedMedia fonts are also accepted (any name up to 128 letters).
+Model.FONT_KEYS = { "default", "ARIALN", "SKURRI", "MORPHEUS" }
+Model.BORDER_STYLES = { "none", "thin", "tooltip" }
+Model.SCALE_MIN, Model.SCALE_MAX = 70, 160
+
+-- Defaults reproduce the look the tracker had before the options existed.
+local OPTION_DEFAULTS = {
+    font = "default",
+    scale = 100,
+    tracker = { bg = { 0, 0, 0 }, bgAlpha = 0, border = "none", borderColor = { 1, 0.82, 0 } },
+}
+
+local function validNumber(v)
+    return type(v) == "number" and v == v and v ~= math.huge and v ~= -math.huge
+end
+
+local function cleanColor(color, default)
+    local out = {}
+    for i = 1, 3 do
+        local v = type(color) == "table" and color[i]
+        out[i] = validNumber(v) and clamp(v, 0, 1) or default[i]
+    end
+    return out
+end
+
+function Model.DefaultOptions()
+    return Util.DeepCopy(OPTION_DEFAULTS)
+end
+
+-- Returns a complete, valid options table from whatever was saved (missing
+-- parts filled in, anything unknown or out of range replaced by the default).
+function Model.CleanOptions(saved)
+    saved = type(saved) == "table" and saved or {}
+    local d = OPTION_DEFAULTS.tracker
+    local t = type(saved.tracker) == "table" and saved.tracker or {}
+    local font = type(saved.font) == "string" and #saved.font > 0 and #saved.font <= 128 and saved.font
+    return {
+        font = font or OPTION_DEFAULTS.font,
+        scale = validNumber(saved.scale) and clamp(math.floor(saved.scale + 0.5), Model.SCALE_MIN, Model.SCALE_MAX)
+            or OPTION_DEFAULTS.scale,
+        tracker = {
+            bg = cleanColor(t.bg, d.bg),
+            bgAlpha = validNumber(t.bgAlpha) and clamp(t.bgAlpha, 0, 1) or d.bgAlpha,
+            border = contains(Model.BORDER_STYLES, t.border) and t.border or d.border,
+            borderColor = cleanColor(t.borderColor, d.borderColor),
+        },
+    }
+end
+
 -- SavedVariables ------------------------------------------------------------
 
 local idCounter = 0
@@ -186,6 +237,7 @@ function Model.InitDB(accountDB, charDB)
     accountDB.history = accountDB.history or {}
     accountDB.recentIcons = accountDB.recentIcons or {}
     accountDB.minimap = accountDB.minimap or { angle = 225, hidden = false }
+    accountDB.options = Model.CleanOptions(accountDB.options)
     charDB.schema = charDB.schema or Model.SCHEMA
     charDB.active = charDB.active or {}
     charDB.tracked = charDB.tracked or {}

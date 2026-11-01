@@ -6,7 +6,7 @@ local L = ns.L
 -- General
 L["LOADED"] = "v%s chargé. Tapez /cq pour ouvrir votre journal."
 L["WRONG_CLIENT"] = "Ce paquet est prévu pour %s et peut ne pas fonctionner sur ce client."
-L["HELP"] = "/cq - journal · /cq tracker - afficher/masquer le suivi · /cq sample - quête d'exemple · /cq minimap - afficher/masquer le bouton de la minicarte · /cq debug - infos · /cq reset - forcer les réinitialisations"
+L["HELP"] = "/cq - journal · /cq tracker - afficher/masquer le suivi · /cq sample - quête d'exemple · /cq minimap - afficher/masquer le bouton de la minicarte · /cq options - apparence du suivi · /cq debug - infos · /cq reset - forcer les réinitialisations"
 L["QUEST_COMPLETED"] = "Quête terminée : %s"
 L["OBJECTIVE_DONE"] = "Terminé"
 L["QUEST_READY"] = "%s : objectifs atteints, prête à être terminée !"
@@ -143,6 +143,22 @@ L["HINT_MAP"] = "ID de carte d'une zone. Placez-vous-y et cliquez sur Cette cart
 L["HELP_BUTTON"] = "Aide"
 L["HELP_TITLE"] = "Aide des objectifs"
 L["HELP_TEXT"] = "|cffffd200Trouver les ID|r\nCherchez l'objet ou le PNJ sur wowhead.com. Le nombre dans l'adresse de sa page est l'ID : wowhead.com/item=2772 est l'objet 2772, wowhead.com/npc=448 est le PNJ 448. Survolez une case d'ID pour un rappel.\n\n|cffffd200Objet|r\nSaisissez l'ID de l'objet, ou cliquez dans la case d'ID puis Maj+clic sur l'objet dans vos sacs, chez un marchand ou dans un lien du chat. L'ID se remplit tout seul. Quantité est le nombre voulu dans vos sacs.\n\n|cffffd200Tuer|r\nCiblez le PNJ et cliquez sur Cible pour remplir son ID et son nom. Ajoutez un ID de carte pour ne compter que là, ou laissez le PNJ vide et indiquez seulement une carte pour compter n'importe quel ennemi de cette carte. En instance le jeu masque qui est mort : cochez la case pour un décompte approximatif.\n\n|cffffd200Boss|r\nBattez le boss une fois, puis cliquez sur Dernier boss. Cela remplit l'ID de la rencontre et le nom.\n\n|cffffd200Zone et Sous-zone|r\nZone compte une carte entière. Sous-zone est le nom affiché sous la minicarte, par exemple une ferme ou un camp dans une zone. Placez-vous là et cliquez sur Cette carte ou Cette sous-zone. Les noms dépendent de la langue du jeu.\n\n|cffffd200Lieu|r\nPlacez-vous à l'endroit voulu et cliquez sur Ma position. Rayon est la distance à atteindre, en pourcentage de la carte.\n\n|cffffd200Niveau et Manuel|r\nNiveau se termine en l'atteignant. Les objectifs manuels se comptent vous-même avec les boutons + et - du journal."
+
+L["OPT_SAMPLE_QUEST"] = "Une quête d'exemple"
+L["OPT_SAMPLE_OBJECTIVE"] = "Tuez 10 loups : 4/10"
+L["OPT_FONT"] = "Police"
+L["OPT_FONT_DEFAULT"] = "Défaut du jeu"
+L["OPT_SCALE"] = "Taille du texte"
+L["OPT_TRACKER"] = "Suivi"
+L["OPT_BG"] = "Couleur de fond"
+L["OPT_OPACITY"] = "Opacité"
+L["OPT_BORDER"] = "Bordure"
+L["OPT_BORDER_COLOR"] = "Couleur de la bordure"
+L["OPT_BORDER_NONE"] = "Aucune"
+L["OPT_BORDER_THIN"] = "Ligne fine"
+L["OPT_BORDER_TOOLTIP"] = "Style infobulle"
+L["OPT_RESET"] = "Rétablir les valeurs par défaut"
+L["OPT_UNAVAILABLE"] = "Le panneau de réglages n'est pas disponible sur ce client."
 
 -- Import / export
 L["EXPORT_TITLE"] = "Exporter le modèle"

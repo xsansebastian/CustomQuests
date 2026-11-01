@@ -6,7 +6,7 @@ local L = ns.L
 -- General
 L["LOADED"] = "v%s geladen. Tippe /cq, um dein Questbuch zu öffnen."
 L["WRONG_CLIENT"] = "Dieses Paket ist für %s gedacht und funktioniert auf diesem Client eventuell nicht."
-L["HELP"] = "/cq - Questbuch · /cq tracker - Verfolgung ein-/ausblenden · /cq sample - Beispielquest · /cq minimap - Minikarten-Schaltfläche ein-/ausblenden · /cq debug - Info · /cq reset - Zurücksetzen erzwingen"
+L["HELP"] = "/cq - Questbuch · /cq tracker - Verfolgung ein-/ausblenden · /cq sample - Beispielquest · /cq minimap - Minikarten-Schaltfläche ein-/ausblenden · /cq options - Aussehen der Verfolgung · /cq debug - Info · /cq reset - Zurücksetzen erzwingen"
 L["QUEST_COMPLETED"] = "Quest abgeschlossen: %s"
 L["OBJECTIVE_DONE"] = "Abgeschlossen"
 L["QUEST_READY"] = "%s: Ziele erreicht, bereit zum Abschließen!"
@@ -143,6 +143,22 @@ L["HINT_MAP"] = "Karten-ID einer Zone. Stelle dich dorthin und klicke auf Diese 
 L["HELP_BUTTON"] = "Hilfe"
 L["HELP_TITLE"] = "Hilfe zu Zielen"
 L["HELP_TEXT"] = "|cffffd200IDs finden|r\nSuche den Gegenstand oder NPC auf wowhead.com. Die Zahl in der Adresse seiner Seite ist die ID: wowhead.com/item=2772 ist Gegenstand 2772, wowhead.com/npc=448 ist NPC 448. Fahre über ein ID-Feld für eine Erinnerung.\n\n|cffffd200Gegenstand|r\nGib die Gegenstands-ID ein, oder klicke in das ID-Feld und klicke mit Umschalt auf den Gegenstand in deinen Taschen, bei einem Händler oder in einem Chatlink. Die ID wird automatisch eingetragen. Anzahl ist, wie viele du in den Taschen brauchst.\n\n|cffffd200Töten|r\nWähle den NPC als Ziel und klicke auf Ziel, um ID und Name einzutragen. Gib eine Karten-ID an, um nur dort zu zählen, oder lass den NPC leer und gib nur eine Karte an, um jeden Feind dieser Karte zu zählen. In Instanzen verbirgt das Spiel, wer gestorben ist: Aktiviere das Kästchen für eine ungefähre Zählung.\n\n|cffffd200Boss|r\nBesiege den Boss einmal und klicke dann auf Letzter Boss. Das trägt Begegnungs-ID und Namen ein.\n\n|cffffd200Zone und Unterzone|r\nZone zählt eine ganze Karte. Unterzone ist der Name unter der Minikarte, zum Beispiel ein Hof oder Lager in einer Zone. Stelle dich dorthin und klicke auf Diese Karte oder Diese Unterzone. Namen hängen von der Spielsprache ab.\n\n|cffffd200Ort|r\nStelle dich an die Stelle und klicke auf Meine Position. Radius ist, wie nah du herankommen musst, in Prozent der Karte.\n\n|cffffd200Stufe und Manuell|r\nStufe ist erledigt, wenn du sie erreichst. Manuelle Ziele zählst du selbst mit den Tasten + und - im Questbuch."
+
+L["OPT_SAMPLE_QUEST"] = "Eine Beispielquest"
+L["OPT_SAMPLE_OBJECTIVE"] = "Töte 10 Wölfe: 4/10"
+L["OPT_FONT"] = "Schriftart"
+L["OPT_FONT_DEFAULT"] = "Spielstandard"
+L["OPT_SCALE"] = "Textgröße"
+L["OPT_TRACKER"] = "Verfolgung"
+L["OPT_BG"] = "Hintergrundfarbe"
+L["OPT_OPACITY"] = "Deckkraft"
+L["OPT_BORDER"] = "Rahmen"
+L["OPT_BORDER_COLOR"] = "Rahmenfarbe"
+L["OPT_BORDER_NONE"] = "Keiner"
+L["OPT_BORDER_THIN"] = "Dünne Linie"
+L["OPT_BORDER_TOOLTIP"] = "Tooltip-Stil"
+L["OPT_RESET"] = "Auf Standard zurücksetzen"
+L["OPT_UNAVAILABLE"] = "Das Einstellungsfenster ist auf diesem Client nicht verfügbar."
 
 -- Import / export
 L["EXPORT_TITLE"] = "Vorlage exportieren"

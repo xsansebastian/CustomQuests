@@ -22,10 +22,12 @@ Objectives.lua
 Lifecycle.lua
 Samples.lua
 UI\Common.lua
+UI\Style.lua
 UI\Dialogs.lua
 UI\TurnIn.lua
 UI\Tracker.lua
 UI\Minimap.lua
+UI\Options.lua
 UI\Journal.lua
 UI\IconPicker.lua
 UI\Editor.lua

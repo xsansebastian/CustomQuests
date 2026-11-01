@@ -57,6 +57,7 @@ function handlers.PLAYER_LOGIN()
     ns.api.Print(L["LOADED"]:format(ns.api.GetMetadata("Version") or "?"))
     if ns.Tracker then ns.Tracker.Init() end
     if ns.Minimap then ns.Minimap.Init() end
+    if ns.Options then ns.Options.Init() end
     ns.RefreshAll()
     ns.TrackProgress() -- records the starting point so login doesn't announce old progress
     C_Timer.NewTicker(60, function()
@@ -257,6 +258,10 @@ end
 
 function commands.minimap()
     if ns.Minimap then ns.Minimap.Toggle() end
+end
+
+function commands.options()
+    if ns.Options then ns.Options.Open() end
 end
 
 function commands.help()

@@ -6,7 +6,7 @@ local L = ns.L
 -- General
 L["LOADED"] = "v%s cargado. Escribe /cq para abrir tu diario."
 L["WRONG_CLIENT"] = "Este paquete es para %s y puede no funcionar en este cliente."
-L["HELP"] = "/cq - diario · /cq tracker - mostrar/ocultar rastreador · /cq sample - misión de ejemplo · /cq minimap - mostrar/ocultar botón del minimapa · /cq debug - info · /cq reset - forzar reinicios"
+L["HELP"] = "/cq - diario · /cq tracker - mostrar/ocultar rastreador · /cq sample - misión de ejemplo · /cq minimap - mostrar/ocultar botón del minimapa · /cq options - apariencia del rastreador · /cq debug - info · /cq reset - forzar reinicios"
 L["QUEST_COMPLETED"] = "Misión completada: %s"
 L["OBJECTIVE_DONE"] = "Completado"
 L["QUEST_READY"] = "%s: objetivos cumplidos, ¡lista para completar!"
@@ -143,6 +143,22 @@ L["HINT_MAP"] = "ID de mapa de una zona. Colócate allí y pulsa Este mapa o Est
 L["HELP_BUTTON"] = "Ayuda"
 L["HELP_TITLE"] = "Ayuda de objetivos"
 L["HELP_TEXT"] = "|cffffd200Encontrar IDs|r\nBusca el objeto o el PNJ en wowhead.com. El número de la dirección de su página es el ID: wowhead.com/item=2772 es el objeto 2772, wowhead.com/npc=448 es el PNJ 448. Pasa el ratón por cualquier casilla de ID para un recordatorio.\n\n|cffffd200Objeto|r\nEscribe el ID del objeto, o haz clic en la casilla de ID y Mayús+clic sobre el objeto en tus bolsas, un vendedor o un enlace del chat. El ID se rellena solo. Cant. es cuántos necesitas en las bolsas.\n\n|cffffd200Matar|r\nMarca al PNJ como objetivo y pulsa Objetivo para rellenar su ID y nombre. Añade un ID de mapa para contarlo solo allí, o deja el PNJ vacío y pon solo un mapa para contar cualquier enemigo de ese mapa. En instancias el juego oculta quién ha muerto: marca la casilla para contar de forma aproximada.\n\n|cffffd200Jefe|r\nDerrota al jefe una vez y pulsa Último jefe. Rellena el ID del encuentro y el nombre.\n\n|cffffd200Zona y Subzona|r\nZona cuenta un mapa entero. Subzona es el nombre que sale bajo el minimapa, por ejemplo una granja o un campamento dentro de una zona. Colócate allí y pulsa Este mapa o Esta subzona. Los nombres dependen del idioma del juego.\n\n|cffffd200Ubicación|r\nColócate en el sitio y pulsa Mi posición. Radio es lo cerca que hay que llegar, en porcentaje del mapa.\n\n|cffffd200Nivel y Manual|r\nNivel se completa al alcanzarlo. Los objetivos manuales los cuentas tú con los botones + y - del diario."
+
+L["OPT_SAMPLE_QUEST"] = "Una misión de ejemplo"
+L["OPT_SAMPLE_OBJECTIVE"] = "Mata 10 lobos: 4/10"
+L["OPT_FONT"] = "Fuente"
+L["OPT_FONT_DEFAULT"] = "Predeterminada del juego"
+L["OPT_SCALE"] = "Tamaño del texto"
+L["OPT_TRACKER"] = "Rastreador"
+L["OPT_BG"] = "Color de fondo"
+L["OPT_OPACITY"] = "Opacidad"
+L["OPT_BORDER"] = "Borde"
+L["OPT_BORDER_COLOR"] = "Color del borde"
+L["OPT_BORDER_NONE"] = "Ninguno"
+L["OPT_BORDER_THIN"] = "Línea fina"
+L["OPT_BORDER_TOOLTIP"] = "Estilo de tooltip"
+L["OPT_RESET"] = "Restablecer valores"
+L["OPT_UNAVAILABLE"] = "El panel de ajustes no está disponible en este cliente."
 
 -- Import / export
 L["EXPORT_TITLE"] = "Exportar plantilla"

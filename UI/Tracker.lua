@@ -8,6 +8,7 @@ ns.Tracker = Tracker
 
 local WIDTH = 260
 local LINE_HEIGHT = 12
+local PAD = 8 -- left margin inside the tracker
 
 local frame, header
 local lines, plusButtons, titleButtons = {}, {}, {}
@@ -16,10 +17,10 @@ local savePosition
 local function getLine(i)
     local fs = lines[i]
     if not fs then
-        fs = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        fs = UI.Style.Text(frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall"))
         fs:SetJustifyH("LEFT")
         fs:SetWordWrap(true)
-        fs:SetWidth(WIDTH - 30)
+        fs:SetWidth(WIDTH - 30 - PAD)
         lines[i] = fs
     end
     fs:Show()
@@ -40,10 +41,10 @@ local function getTitle(i)
     local b = titleButtons[i]
     if not b then
         b = CreateFrame("Button", nil, frame)
-        b.text = b:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        b.text = UI.Style.Text(b:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall"))
         b.text:SetPoint("TOPLEFT")
         b.text:SetJustifyH("LEFT")
-        b.text:SetWidth(WIDTH - 30)
+        b.text:SetWidth(WIDTH - 30 - PAD)
         b:SetWidth(WIDTH - 30)
         b:RegisterForDrag("LeftButton")
         b:RegisterForClicks("RightButtonUp")
@@ -108,6 +109,18 @@ local function create()
     frame:SetMovable(true)
     frame:SetClampedToScreen(true)
 
+    -- Background and border live in a separate frame behind the tracker, so the
+    -- tracker's own text (regions of `frame`) is drawn on top of it.
+    local bg = CreateFrame("Frame", nil, UIParent, "BackdropTemplate")
+    bg:SetFrameStrata(frame:GetFrameStrata())
+    bg:SetFrameLevel(math.max(frame:GetFrameLevel() - 1, 0))
+    bg:SetPoint("TOPLEFT", frame, "TOPLEFT", -6, 6)
+    bg:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", 6, -6)
+    UI.Style.Box(bg)
+    frame:HookScript("OnShow", function() bg:Show() end)
+    frame:HookScript("OnHide", function() bg:Hide() end)
+    bg:SetShown(frame:IsShown())
+
     header = CreateFrame("Button", nil, frame)
     header:SetPoint("TOPLEFT")
     header:SetSize(WIDTH, 18)
@@ -130,8 +143,8 @@ local function create()
         GameTooltip:Show()
     end)
     header:SetScript("OnLeave", GameTooltip_Hide)
-    header.text = header:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    header.text:SetPoint("LEFT")
+    header.text = UI.Style.Text(header:CreateFontString(nil, "OVERLAY", "GameFontNormal"))
+    header.text:SetPoint("LEFT", PAD, 0)
 
     local pos = Model.char.trackerPos
     if pos then
@@ -176,12 +189,12 @@ function Tracker.Refresh()
             -- The "?" sits in front of the title, so the text makes room for it.
             title.text:ClearAllPoints()
             title.text:SetPoint("TOPLEFT", ready and 18 or 0, 0)
-            title.text:SetWidth(WIDTH - 30 - (ready and 18 or 0))
+            title.text:SetWidth(WIDTH - 30 - PAD - (ready and 18 or 0))
             title.text:SetText(("%s|cff%s%s|r%s%s"):format(UI.InlineIcon(quest.template, 12), UI.QUEST_COLOR,
                 UI.QuestText(quest.template.title),
                 stages > 1 and (" (" .. quest.stage .. "/" .. stages .. ")") or "", folded and " [+]" or ""))
             title:ClearAllPoints()
-            title:SetPoint("TOPLEFT", frame, "TOPLEFT", 0, y)
+            title:SetPoint("TOPLEFT", frame, "TOPLEFT", PAD, y)
             title:SetHeight(title.text:GetStringHeight())
             y = y - title.text:GetStringHeight() - 1
 
@@ -190,7 +203,7 @@ function Tracker.Refresh()
                 local line = getLine(n)
                 local text, done = UI.ObjectiveLine(quest, i, obj)
                 line:SetText("- " .. text)
-                line:SetPoint("TOPLEFT", frame, "TOPLEFT", 8, y)
+                line:SetPoint("TOPLEFT", frame, "TOPLEFT", 8 + PAD, y)
                 if obj.type == "manual" and not done then
                     nPlus = nPlus + 1
                     local b = getPlus(nPlus)
@@ -214,5 +227,6 @@ function Tracker.Init()
     if frame then return end
     create()
     Util.On("QUESTS_CHANGED", Tracker.Refresh)
+    Util.On("STYLE_CHANGED", Tracker.Refresh)
     Tracker.Refresh()
 end

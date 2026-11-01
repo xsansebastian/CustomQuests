@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- New tracker appearance settings in Options > AddOns > CustomQuests (also `/cq options`): font (including SharedMedia fonts if installed) and text size, background color and opacity, border style and color, with a live preview and a reset button. The tracker also has a little more margin on the left.
+
 ## 0.6.0
 
 - New minimap button: left-click opens the journal, right-click shows/hides the tracker, Shift+drag moves it. `/cq minimap` hides or shows it.

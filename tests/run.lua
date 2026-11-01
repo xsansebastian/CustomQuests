@@ -332,6 +332,29 @@ test("All locales define the same keys as enUS", function()
     end
 end)
 
+test("Appearance options fill defaults and reject bad values", function()
+    local defaults = Model.CleanOptions(nil)
+    eq(defaults.font, "default")
+    eq(defaults.scale, 100)
+    eq(defaults.tracker.bgAlpha, 0)
+    eq(defaults.tracker.border, "none")
+    local clean = Model.CleanOptions({
+        font = 42, scale = 9999,
+        tracker = { bgAlpha = 5, border = "default", bg = { 2, "x", -1 }, borderColor = { 0.5, 0.25, 0.75 } },
+    })
+    eq(clean.font, "default", "non-string font")
+    eq(clean.scale, Model.SCALE_MAX, "scale clamped")
+    eq(clean.tracker.bgAlpha, 1, "alpha clamped")
+    eq(clean.tracker.border, "none", "unknown border")
+    eq(clean.tracker.bg[1], 1)
+    eq(clean.tracker.bg[2], 0, "bad channel falls back")
+    eq(clean.tracker.bg[3], 0)
+    eq(clean.tracker.borderColor[3], 0.75)
+    eq(Model.CleanOptions({ font = "Fira Sans" }).font, "Fira Sans", "SharedMedia names are kept")
+    eq(Model.CleanOptions("junk").scale, 100, "non-table")
+    eq(Model.account.options.scale, 100, "InitDB stores clean options")
+end)
+
 test("Icons accept file names and IDs only", function()
     eq(Model.ValidIcon("INV_Misc_Book_09"), "INV_Misc_Book_09")
     eq(Model.ValidIcon(134400), 134400)
