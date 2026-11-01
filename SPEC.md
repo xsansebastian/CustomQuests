@@ -6,7 +6,7 @@ Estado: **borrador pendiente de aprobación** · 2026-11-01
 
 Addon de WoW para crear **misiones propias** y seguirlas en pantalla. Dos usos:
 
-- **Roleplay**: misiones con narrativa (dador, descripción, texto de recompensa, etapas encadenadas) que se pueden compartir con otros jugadores como texto.
+- **Roleplay**: misiones con narrativa (NPC, descripción, texto de recompensa, etapas encadenadas) que se pueden compartir con otros jugadores como texto.
 - **Tareas personales**: objetivos que el addon sigue solo (farmear N objetos, matar N de un NPC, llegar a un sitio), repetibles con **plantillas** y con reinicio diario/semanal opcional.
 
 Usuario: un jugador individual (sin servidor ni coordinación de grupo). Éxito = puedo crear una plantilla "Farmear 20 Hierro" una vez, aceptarla cuando quiera, verla avanzar sola mientras farmeo y ver en el historial cuántas veces la he completado.

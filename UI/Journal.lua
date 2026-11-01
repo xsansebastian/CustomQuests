@@ -13,7 +13,13 @@ local DETAIL_WIDTH = WIDTH - LIST_WIDTH - 90
 
 local window, list, detail
 local tabButtons = {}
-local state = { tab = "active", selected = {} } -- selected[tab] = id
+-- main: the last of Active/History shown, so the swap button still has a meaning on Templates.
+local state = { tab = "active", main = "active", selected = {} } -- selected[tab] = id
+
+-- The view the swap button leads to: the one of Active/History you are not in.
+local function swapTarget()
+    return state.main == "active" and "history" or "active"
+end
 
 -- List -----------------------------------------------------------------------
 
@@ -130,18 +136,11 @@ local function getObjectiveRow(i)
     local r = objectiveRows[i]
     if r then r:Show() return r end
     r = CreateFrame("Frame", nil, detail.content)
-    -- One compact line: label, then a short bar for counted goals, then +/-.
+    -- One compact line: label with its count, then +/- for manual goals.
     r:SetSize(DETAIL_WIDTH, OBJECTIVE_ROW_HEIGHT)
     r.label = UI.CreateLabel(r, "", "GameFontHighlightSmall")
     r.label:SetPoint("LEFT")
     r.label:SetWordWrap(false)
-    r.bar = CreateFrame("StatusBar", nil, r)
-    r.bar:SetStatusBarTexture("Interface\\TargetingFrame\\UI-StatusBar")
-    r.bar:SetStatusBarColor(1, 0.82, 0)
-    r.bar:SetSize(70, 8)
-    r.barBg = r.bar:CreateTexture(nil, "BACKGROUND")
-    r.barBg:SetAllPoints()
-    r.barBg:SetColorTexture(0, 0, 0, 0.5)
     r.plus = UI.CreateButton(r, "+", 20)
     r.plus:SetHeight(16)
     r.plus:SetPoint("RIGHT")
@@ -231,18 +230,10 @@ local function showActive(id)
             r.index = i
             r:SetPoint("TOPLEFT", 0, y)
             r.label:SetText("- " .. UI.ObjectiveLine(quest, i, obj))
-            local goal = Objectives.Goal(obj)
             local manual = obj.type == "manual"
             r.minus:SetShown(manual)
             r.plus:SetShown(manual)
-            -- Yes/no objectives (zone, location, goal 1) need no bar.
-            r.bar:SetShown(goal > 1)
-            r.bar:ClearAllPoints()
-            if manual then r.bar:SetPoint("RIGHT", r.minus, "LEFT", -6, 0) else r.bar:SetPoint("RIGHT") end
-            r.bar:SetMinMaxValues(0, goal)
-            r.bar:SetValue(math.min(quest.progress[i] or 0, goal))
-            local reserved = (goal > 1 and 76 or 0) + (manual and 48 or 0)
-            r.label:SetWidth(DETAIL_WIDTH - reserved)
+            r.label:SetWidth(DETAIL_WIDTH - (manual and 48 or 0))
             y = y - OBJECTIVE_ROW_HEIGHT
         end
     end
@@ -351,27 +342,34 @@ end
 local function create()
     window = UI.CreateWindow("CustomQuestsJournal", WIDTH, HEIGHT, "CustomQuests")
 
-    local tabs = { { "active", L["TAB_ACTIVE"] }, { "templates", L["TAB_TEMPLATES"] }, { "history", L["TAB_HISTORY"] } }
-    local prev
-    for _, spec in ipairs(tabs) do
-        local b = UI.CreateButton(window, spec[2], 100, function()
-            state.tab = spec[1]
-            Journal.Refresh()
-        end)
-        if prev then b:SetPoint("LEFT", prev, "RIGHT", 4, 0) else b:SetPoint("TOPLEFT", 14, -30) end
-        b.tab = spec[1]
-        tabButtons[#tabButtons + 1] = b
-        prev = b
-    end
+    -- Two buttons: Templates, and a swap between Active and History that always
+    -- offers the view you are not in.
+    local templates = UI.CreateButton(window, L["TAB_TEMPLATES"], 100, function()
+        state.tab = "templates"
+        Journal.Refresh()
+    end)
+    templates:SetPoint("TOPRIGHT", -14, -30)
+    tabButtons.templates = templates
+
+    tabButtons.swap = UI.CreateButton(window, "", 100, function()
+        -- On Templates this is "Back": return to the Active/History view you came from.
+        state.tab = state.tab == "templates" and state.main or swapTarget()
+        Journal.Refresh()
+    end)
+    tabButtons.swap:SetPoint("TOPLEFT", 14, -30)
+
+    -- New and Import only make sense on the Templates view, where its own button is hidden.
     local newButton = UI.CreateButton(window, L["NEW"], 90, function() ns.Editor.Open(nil) end)
     newButton:SetPoint("TOPRIGHT", -14, -30)
-    UI.CreateButton(window, L["IMPORT"], 90, function()
+    local importButton = UI.CreateButton(window, L["IMPORT"], 90, function()
         ns.Dialogs.ShowImport(function(id)
             state.tab = "templates"
             state.selected.templates = id
             Journal.Refresh()
         end)
-    end):SetPoint("RIGHT", newButton, "LEFT", -4, 0)
+    end)
+    importButton:SetPoint("RIGHT", newButton, "LEFT", -4, 0)
+    tabButtons.templateActions = { newButton, importButton }
 
     list = {}
     list.scroll, list.content = createScroll(window, LIST_WIDTH - 4)
@@ -425,9 +423,12 @@ end
 
 function Journal.Refresh()
     if not window then return end
-    for _, b in ipairs(tabButtons) do
-        if b.tab == state.tab then b:LockHighlight() else b:UnlockHighlight() end
-    end
+    local onTemplates = state.tab == "templates"
+    if not onTemplates then state.main = state.tab end
+    tabButtons.templates:SetShown(not onTemplates)
+    tabButtons.swap:SetText(onTemplates and L["BACK"] or L["TAB_" .. swapTarget():upper()])
+    for _, b in ipairs(tabButtons.templateActions) do b:SetShown(onTemplates) end
+    window.TitleText:SetText("CustomQuests · " .. L["TAB_" .. state.tab:upper()])
     local entries = buildEntries()
     refreshList(entries)
     refreshDetail(entries)
