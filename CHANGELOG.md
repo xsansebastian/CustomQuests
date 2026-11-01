@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Tracker: left-click a quest title to open the Journal on that quest.
+- Journal: when the window is made narrow, the buttons under a quest wrap onto a second row instead of spilling out of the window.
 
 ## 0.7.0
 
