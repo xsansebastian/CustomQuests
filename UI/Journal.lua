@@ -228,12 +228,18 @@ local function setButtons(specs)
     end
 end
 
--- Lays out title, meta, body and objective rows; returns the y after them.
-local function layoutDetail(title, meta, body)
+-- Lays out title, meta, an optional widget and the body; returns the y after them.
+local function layoutDetail(title, meta, body, widget)
     detail.title:SetText(title)
     detail.meta:SetText(meta)
     detail.body:SetText(body)
     local y = -(detail.title:GetStringHeight() + detail.meta:GetStringHeight() + 10)
+    if widget then
+        widget:ClearAllPoints()
+        widget:SetPoint("TOPLEFT", 0, y)
+        widget:Show()
+        y = y - widget:GetHeight() - 8
+    end
     detail.body:SetPoint("TOPLEFT", 0, y)
     if body ~= "" then y = y - detail.body:GetStringHeight() - 12 end
     return y
@@ -316,8 +322,9 @@ local function showTemplate(id)
     end
     showTitleIcon(UI.QuestKind(template, id), "available", id, false)
     local y = layoutDetail("|cff" .. UI.QUEST_COLOR .. UI.QuestText(template.title) .. "|r",
-        meta, table.concat(lines, "\n"))
+        meta, table.concat(lines, "\n"), detail.followUp)
     detail.content:SetHeight(-y)
+    detail.followUp:SetScript("OnClick", function() ns.Editor.Open(nil, id) end)
 
     local _, acceptErr = Lifecycle.CanAccept(id)
     setButtons({
@@ -350,6 +357,7 @@ local function showHistory(index)
 end
 
 local function refreshDetail(entries)
+    detail.followUp:Hide()
     for _, r in ipairs(objectiveRows) do r:Hide() end
     detail.turnin:Hide()
     detail.title:ClearAllPoints()
@@ -456,6 +464,8 @@ local function create()
     detail.meta = UI.CreateLabel(detail.content, "", "GameFontHighlightSmall")
     detail.meta:SetPoint("TOPLEFT", detail.title, "BOTTOMLEFT", 0, -4)
     detail.meta:SetWidth(DETAIL_WIDTH)
+    detail.followUp = UI.CreateButton(detail.content, L["ADD_FOLLOW_UP"], 190)
+    detail.followUp:Hide()
     detail.body = UI.CreateLabel(detail.content, "", "GameFontHighlight")
     detail.body:SetWidth(DETAIL_WIDTH)
     detail.body:SetSpacing(2)
@@ -480,6 +490,13 @@ end
 function Journal.ShowTemplate(id)
     state.tab = "templates"
     state.selected.templates = id
+    -- Unfold the chain so the quest is visible in the tree.
+    local step, ancestor = 0, Model.GetTemplate(id)
+    while ancestor and ancestor.requires and step < 30 do
+        Model.account.chainCollapsed[ancestor.requires] = nil
+        ancestor = Model.GetTemplate(ancestor.requires)
+        step = step + 1
+    end
     if window and window:IsShown() then Journal.Refresh() else Journal.Toggle() end
 end
 
