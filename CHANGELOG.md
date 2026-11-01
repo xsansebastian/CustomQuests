@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- Quests now use the game's own quest icons instead of custom ones: campaign for chains, recurring for daily and weekly, and the plain side-quest icon for the rest, each with its in-progress and turn-in versions.
+- Quests now use the game's own quest icons instead of custom ones: campaign for chains, recurring for daily and weekly, and the plain side-quest icon for the rest, each with its in-progress and turn-in versions. The template icon picker is gone, and the quest icons are a little bigger.
 - New tracker appearance settings in Options > AddOns > CustomQuests (also `/cq options`): font (including SharedMedia fonts if installed) and text size, background color and opacity, border style and color, with a live preview and a reset button. The tracker also has a little more margin on the left, and a header banner like the game's own objective tracker, with a red button to fold it.
 
 ## 0.6.0

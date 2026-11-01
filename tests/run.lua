@@ -355,14 +355,6 @@ test("Appearance options fill defaults and reject bad values", function()
     eq(Model.account.options.scale, 100, "InitDB stores clean options")
 end)
 
-test("Icons accept file names and IDs only", function()
-    eq(Model.ValidIcon("INV_Misc_Book_09"), "INV_Misc_Book_09")
-    eq(Model.ValidIcon(134400), 134400)
-    eq(Model.ValidIcon("..\\evil"), nil)
-    eq(Model.ValidIcon(1.5), nil)
-    eq(Model.IconTexture("INV_Misc_Book_09"), "Interface\\Icons\\INV_Misc_Book_09")
-end)
-
 test("Level range blocks accepting outside it", function()
     local tid = assert(Model.SaveTemplate(template({ { type = "manual", text = "a" } }, { minLevel = 10, maxLevel = 20 }), nil, fake.now))
     fake.level = 5
@@ -431,28 +423,6 @@ test("Deleting a middle link reconnects the chain", function()
     local ids = chainOf(3)
     Model.DeleteTemplate(ids[2])
     eq(Model.GetTemplate(ids[3]).requires, ids[1])
-end)
-
-test("NormalizeIcon converts provider textures to the stored form", function()
-    eq(Model.NormalizeIcon(136243), 136243)
-    eq(Model.NormalizeIcon("136243"), 136243)
-    eq(Model.NormalizeIcon("INTERFACE\\ICONS\\INV_MISC_QUESTIONMARK"), "INV_MISC_QUESTIONMARK")
-    eq(Model.NormalizeIcon("Interface/Icons/INV_Misc_Book_09"), "INV_Misc_Book_09")
-    eq(Model.NormalizeIcon("bad name!"), nil)
-end)
-
-test("Recent icons keep the newest first, without duplicates, up to the limit", function()
-    for i = 1, 12 do Model.PushRecentIcon(1000 + i) end
-    Model.PushRecentIcon(1005)
-    local recent = Model.account.recentIcons
-    eq(#recent, Model.MAX_RECENT_ICONS)
-    eq(recent[1], 1005)
-    eq(recent[2], 1012)
-    local seen = {}
-    for _, icon in ipairs(recent) do
-        assert(not seen[icon], "duplicate " .. icon)
-        seen[icon] = true
-    end
 end)
 
 print(("%d passed, %d failed"):format(passed, failed))

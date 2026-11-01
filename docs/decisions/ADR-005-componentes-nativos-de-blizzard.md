@@ -42,3 +42,7 @@ Comprobado en el código de la UI de Retail (Gethe/wow-ui-source, commit `d07eb0
 - La UI depende de `Blizzard_Menu` y de `IconDataProviderMixin`, que son de Retail. Al portar a Forever (ADR-001) hay que comprobar que se cargan, y si no, dar implementaciones alternativas detrás de `UI.CreateDropdown` y `ns.IconPicker`.
 - Si Blizzard cambia esas APIs, el cambio queda localizado en `UI/Common.lua` y `UI/IconPicker.lua`.
 - La barra de la rejilla de iconos es un `Slider` hecho a mano, sin plantilla de scroll de Blizzard; si se ve mal en juego, se puede cambiar sin tocar el resto.
+
+## Actualización
+
+El selector de iconos (`UI/IconPicker.lua`) se eliminó: los iconos de misión ya no se eligen, salen del tipo de misión y su estado (iconos del propio juego). Los dropdowns nativos se mantienen.

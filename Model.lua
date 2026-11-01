@@ -88,39 +88,6 @@ function Model.ValidateObjective(obj)
     return clean
 end
 
--- Icons are an Interface/Icons file name ("INV_Misc_Book_09") or a file ID.
-function Model.ValidIcon(icon)
-    if type(icon) == "number" and icon == math.floor(icon) and icon > 0 and icon < 1e9 then return icon end
-    if type(icon) == "string" and #icon <= 80 and icon:match("^[%w_%-]+$") then return icon end
-end
-
--- Converts what the icon provider returns (file ID or full texture path)
--- into the stored form: a file ID or a bare file name.
-function Model.NormalizeIcon(texture)
-    if type(texture) == "number" then return Model.ValidIcon(texture) end
-    if type(texture) ~= "string" then return nil end
-    return Model.ValidIcon(tonumber(texture) or texture:match("([^/\\]+)$"))
-end
-
-Model.MAX_RECENT_ICONS = 10
-
--- Most recent first, no duplicates.
-function Model.PushRecentIcon(icon)
-    icon = Model.ValidIcon(icon)
-    if not icon then return end
-    local list = Model.account.recentIcons
-    for i = #list, 1, -1 do
-        if list[i] == icon then table.remove(list, i) end
-    end
-    table.insert(list, 1, icon)
-    while #list > Model.MAX_RECENT_ICONS do table.remove(list) end
-end
-
-function Model.IconTexture(icon)
-    if type(icon) == "number" then return icon end
-    if type(icon) == "string" then return "Interface\\Icons\\" .. icon end
-end
-
 function Model.ValidateTemplate(tpl)
     if type(tpl) ~= "table" then return nil, "ERR_BAD_TEMPLATE" end
     local title = cleanString(tpl.title, Model.MAX_TITLE)
@@ -134,7 +101,6 @@ function Model.ValidateTemplate(tpl)
         description = cleanString(tpl.description, Model.MAX_TEXT),
         rewardText = cleanString(tpl.rewardText, Model.MAX_TEXT),
         completionText = cleanString(tpl.completionText, Model.MAX_TEXT),
-        icon = Model.ValidIcon(tpl.icon),
         requires = type(tpl.requires) == "string" and #tpl.requires <= 64
             and tpl.requires:match("^[%w%-]+$") and tpl.requires or nil,
         stages = {},
@@ -235,7 +201,7 @@ function Model.InitDB(accountDB, charDB)
     accountDB.schema = accountDB.schema or Model.SCHEMA
     accountDB.templates = accountDB.templates or {}
     accountDB.history = accountDB.history or {}
-    accountDB.recentIcons = accountDB.recentIcons or {}
+    accountDB.recentIcons = nil -- the icon picker is gone
     accountDB.minimap = accountDB.minimap or { angle = 225, hidden = false }
     accountDB.options = Model.CleanOptions(accountDB.options)
     charDB.schema = charDB.schema or Model.SCHEMA

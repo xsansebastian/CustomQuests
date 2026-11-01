@@ -4,16 +4,6 @@ local L, Util = ns.L, ns.Util
 local UI = {}
 ns.UI = UI
 
-UI.TYPE_ICONS = {
-    item = "Interface\\Icons\\INV_Misc_Bag_10",
-    kill = "Interface\\Icons\\Ability_DualWield",
-    boss = "Interface\\Icons\\Achievement_Boss_Ragnaros",
-    zone = "Interface\\Icons\\INV_Misc_Map_01",
-    subzone = "Interface\\Icons\\INV_Misc_Map_01",
-    location = "Interface\\Icons\\Ability_Tracking",
-    level = "Interface\\Icons\\Achievement_Level_10",
-    manual = "Interface\\Icons\\INV_Misc_Note_01",
-}
 UI.APPROX_ICON = "|TInterface\\DialogFrame\\UI-Dialog-Icon-AlertNew:12|t"
 UI.QUEST_COLOR = "ffd200"
 
@@ -71,18 +61,6 @@ function UI.QuestIconMarkup(kind, iconState, size)
     local name = QUEST_ICONS[kind][iconState]
     if not name:find("\\", 1, true) and atlasExists(name) then return CreateAtlasMarkup(name, size, size) end
     return "|T" .. (name:find("\\", 1, true) and name or ICON_FILES[iconState]) .. ":" .. size .. "|t"
-end
-
--- The template's own icon, else one for its first objective type.
-function UI.TemplateIcon(template)
-    local icon = ns.Model.IconTexture(template.icon)
-    if icon then return icon end
-    local obj = template.stages[1] and template.stages[1].objectives[1]
-    return UI.TYPE_ICONS[obj and obj.type or "manual"]
-end
-
-function UI.InlineIcon(template, size)
-    return "|T" .. UI.TemplateIcon(template) .. ":" .. (size or 16) .. "|t "
 end
 
 -- Lines describing level range and chain links of a template.
@@ -239,7 +217,7 @@ function UI.CreateDropdown(parent, width, getItems, getValue, onSelect)
         local items = getItems()
         if #items > 15 then root:SetScrollMode(15 * 20) end
         for _, item in ipairs(items) do
-            local text = item.icon and ("|T" .. item.icon .. ":14|t " .. item.text) or item.text
+            local text = item.icon and (item.icon .. " " .. item.text) or item.text
             root:CreateRadio(text,
                 function(value) return (getValue() or false) == value end,
                 function(value) onSelect(value) end,

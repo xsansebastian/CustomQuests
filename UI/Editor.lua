@@ -261,17 +261,13 @@ local function labeled(parent, text, widget, x, y)
     return widget
 end
 
-local function refreshIcon()
-    fields.icon.tex:SetTexture(UI.TemplateIcon(draft))
-end
-
 -- Templates this one may follow: all others except those that would loop.
 local function chainItems()
     local items = { { value = false, text = L["CHAIN_NONE"] } }
     for _, entry in ipairs(Model.ListTemplates()) do
         if entry.id ~= draftID and not (draftID and Model.WouldCycle(draftID, entry.id)) then
             items[#items + 1] = { value = entry.id, text = UI.QuestText(entry.template.title),
-                icon = UI.TemplateIcon(entry.template) }
+                icon = UI.QuestIconMarkup(UI.QuestKind(entry.template, entry.id), "available", 14) }
         end
     end
     return items
@@ -296,33 +292,6 @@ local function createGeneralPanel(panel)
         function() return draft.repeatMode end,
         function(v) draft.repeatMode = v end), 0, -56)
 
-    -- Icon: left-click opens the macro icon picker, right-click goes back to automatic.
-    fields.icon = CreateFrame("Button", nil, panel)
-    fields.icon:SetSize(30, 30)
-    labeled(panel, L["F_ICON"], fields.icon, 150, -56)
-    fields.icon.tex = fields.icon:CreateTexture(nil, "ARTWORK")
-    fields.icon.tex:SetAllPoints()
-    fields.icon:SetHighlightTexture("Interface\\Buttons\\ButtonHilight-Square", "ADD")
-    fields.icon:RegisterForClicks("LeftButtonUp", "RightButtonUp")
-    fields.icon:SetScript("OnClick", function(self, mouse)
-        if mouse == "RightButton" then
-            draft.icon = nil
-            refreshIcon()
-            return
-        end
-        ns.IconPicker.Open(self, function(icon)
-            draft.icon = icon
-            refreshIcon()
-        end)
-    end)
-    fields.icon:SetScript("OnEnter", function(self)
-        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-        GameTooltip:SetText(L["F_ICON"])
-        GameTooltip:AddLine(L["ICON_HELP"], 1, 1, 1, true)
-        GameTooltip:Show()
-    end)
-    fields.icon:SetScript("OnLeave", GameTooltip_Hide)
-
     -- Level range: empty means no limit.
     local function levelField(key, label, x)
         local e = labeled(panel, label, UI.CreateEditBox(panel, 40, true), x, -56)
@@ -332,8 +301,8 @@ local function createGeneralPanel(panel)
         end)
         return e
     end
-    fields.minLevel = levelField("minLevel", L["F_MIN_LEVEL"], 210)
-    fields.maxLevel = levelField("maxLevel", L["F_MAX_LEVEL"], 275)
+    fields.minLevel = levelField("minLevel", L["F_MIN_LEVEL"], 160)
+    fields.maxLevel = levelField("maxLevel", L["F_MAX_LEVEL"], 230)
 
     -- Chain: the quest that must be completed before this one.
     fields.requires = labeled(panel, L["F_REQUIRES"], UI.CreateDropdown(panel, 360, chainItems,
@@ -460,7 +429,6 @@ local function loadDraft()
     fields.requires:Refresh()
     fields.minLevel:SetText(draft.minLevel and tostring(draft.minLevel) or "")
     fields.maxLevel:SetText(draft.maxLevel and tostring(draft.maxLevel) or "")
-    refreshIcon()
     fields.description:SetText(draft.description or "")
     fields.reward:SetText(draft.rewardText or "")
     fields.completion:SetText(draft.completionText or "")
@@ -573,7 +541,6 @@ local function create()
 
     window:SetScript("OnHide", function()
         if helpWindow then helpWindow:Hide() end
-        if ns.IconPicker and CustomQuestsIconPicker then CustomQuestsIconPicker:Hide() end
     end)
 end
 

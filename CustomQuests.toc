@@ -29,6 +29,5 @@ UI\Tracker.lua
 UI\Minimap.lua
 UI\Options.lua
 UI\Journal.lua
-UI\IconPicker.lua
 UI\Editor.lua
 Core.lua
