@@ -21,6 +21,45 @@ function Dialogs.Confirm(text, onAccept)
     StaticPopup_Show("CUSTOMQUESTS_CONFIRM", text, nil, onAccept)
 end
 
+-- Three ways out when a deleted template has quests after it in its chain:
+-- the whole branch (button1), only the chosen ones (button3, OnAlt) or nothing.
+-- data = { ids = {...}, onDone = function }.
+StaticPopupDialogs["CUSTOMQUESTS_DELETE_BRANCH"] = {
+    text = "%s",
+    button1 = L["DELETE_BRANCH_ALL"],
+    button2 = CANCEL,
+    button3 = L["DELETE_BRANCH_ONLY"],
+    OnAccept = function(_, data)
+        Model.DeleteTemplates(data.ids, true)
+        if data.onDone then data.onDone() end
+    end,
+    OnAlt = function(_, data)
+        Model.DeleteTemplates(data.ids, false)
+        if data.onDone then data.onDone() end
+    end,
+    timeout = 0,
+    whileDead = true,
+    hideOnEscape = true,
+    preferredIndex = 3,
+}
+
+-- Deletes the templates after asking; onDone runs once they are gone.
+function Dialogs.ConfirmDelete(ids, onDone)
+    local many = #ids > 1
+    if Model.NeedsBranchChoice(ids) then
+        local text = many and L["CONFIRM_DELETE_BRANCH_MANY"]:format(#ids)
+            or L["CONFIRM_DELETE_BRANCH"]:format(UI.QuestText(Model.GetTemplate(ids[1]).title))
+        StaticPopup_Show("CUSTOMQUESTS_DELETE_BRANCH", text, nil, { ids = ids, onDone = onDone })
+        return
+    end
+    local text = many and L["CONFIRM_DELETE_MANY"]:format(#ids)
+        or L["CONFIRM_DELETE"]:format(UI.QuestText(Model.GetTemplate(ids[1]).title))
+    Dialogs.Confirm(text, function()
+        Model.DeleteTemplates(ids, false)
+        if onDone then onDone() end
+    end)
+end
+
 -- Import / export ------------------------------------------------------------
 
 local window, edit, actionButton, status
