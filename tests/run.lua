@@ -316,6 +316,22 @@ test("TOC covers both clients and all its files exist", function()
     end
 end)
 
+-- Every translation must define every key the English file does (missing ones show the raw key).
+test("All locales define the same keys as enUS", function()
+    local function keys(file)
+        local set, f = {}, assert(io.open(file, "r"))
+        for key in f:read("*a"):gmatch('L%["([%w_]+)"%]%s*=') do set[key] = true end
+        f:close()
+        return set
+    end
+    local en = keys("Locales/enUS.lua")
+    for _, locale in ipairs({ "esES", "deDE", "frFR" }) do
+        local other = keys("Locales/" .. locale .. ".lua")
+        for key in pairs(en) do assert(other[key], locale .. " is missing " .. key) end
+        for key in pairs(other) do assert(en[key], locale .. " has unknown key " .. key) end
+    end
+end)
+
 test("Icons accept file names and IDs only", function()
     eq(Model.ValidIcon("INV_Misc_Book_09"), "INV_Misc_Book_09")
     eq(Model.ValidIcon(134400), 134400)

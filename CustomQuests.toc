@@ -2,14 +2,18 @@
 ## Title: CustomQuests
 ## Notes: Create your own quests for roleplay and personal goals, with auto-tracking and reusable templates.
 ## Notes-esES: Crea tus propias misiones de rol y objetivos personales, con seguimiento automático y plantillas.
+## Notes-deDE: Erstelle eigene Quests für Rollenspiel und persönliche Ziele, mit automatischer Verfolgung und wiederverwendbaren Vorlagen.
+## Notes-frFR: Créez vos propres quêtes pour le jeu de rôle et vos objectifs personnels, avec suivi automatique et modèles réutilisables.
 ## Author: Xavi
-## Version: 0.5.0
+## Version: 0.5.1
 ## IconTexture: Interface\AddOns\CustomQuests\Media\Icon
 ## SavedVariables: CustomQuestsDB
 ## SavedVariablesPerCharacter: CustomQuestsCharDB
 
 Locales\enUS.lua
 Locales\esES.lua
+Locales\deDE.lua
+Locales\frFR.lua
 Util.lua
 Compat\Common.lua
 Model.lua
