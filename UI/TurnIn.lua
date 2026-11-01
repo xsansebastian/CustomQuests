@@ -59,6 +59,13 @@ local function create()
     UI.CreateButton(window, CANCEL, 100, function() window:Hide() end):SetPoint("LEFT", complete, "RIGHT", 6, 0)
 
     Util.On("QUESTS_CHANGED", function() if window:IsShown() then render() end end)
+    -- The text takes the window's width; the box above the buttons takes its height.
+    UI.MakeResizable(window, 340, 260, 800, 700, function(w)
+        window.content:SetWidth(w - 60)
+        window.title:SetWidth(w - 60)
+        window.body:SetWidth(w - 60)
+        if questID and window:IsShown() then render() end
+    end)
 end
 
 function TurnIn.Open(id)

@@ -156,6 +156,45 @@ function UI.CreateWindow(name, width, height, title)
     return f
 end
 
+-- Lets the player drag the bottom-right corner of a CreateWindow window to
+-- resize it. The size is remembered per window name in the account data.
+-- onResize(width, height) re-lays out whatever doesn't follow its anchors; it
+-- runs once now and again on every size change.
+function UI.MakeResizable(f, minW, minH, maxW, maxH, onResize)
+    local name = f:GetName()
+    f:SetResizable(true)
+    if f.SetResizeBounds then
+        f:SetResizeBounds(minW, minH, maxW, maxH)
+    else
+        f:SetMinResize(minW, minH)
+        f:SetMaxResize(maxW, maxH)
+    end
+    local saved = name and ns.Model.account and ns.Model.account.windowSizes[name]
+    if type(saved) == "table" and tonumber(saved.w) and tonumber(saved.h) then
+        f:SetSize(math.min(maxW, math.max(minW, saved.w)), math.min(maxH, math.max(minH, saved.h)))
+    end
+
+    local grip = CreateFrame("Button", nil, f)
+    grip:SetSize(16, 16)
+    grip:SetPoint("BOTTOMRIGHT", -4, 4)
+    grip:SetFrameLevel(f:GetFrameLevel() + 20)
+    grip:SetNormalTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Up")
+    grip:SetHighlightTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Highlight")
+    grip:SetPushedTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Down")
+    grip:SetScript("OnMouseDown", function() f:StartSizing("BOTTOMRIGHT") end)
+    grip:SetScript("OnMouseUp", function()
+        f:StopMovingOrSizing()
+        if name and ns.Model.account then
+            ns.Model.account.windowSizes[name] = { w = math.floor(f:GetWidth() + 0.5), h = math.floor(f:GetHeight() + 0.5) }
+        end
+    end)
+    if onResize then
+        f:SetScript("OnSizeChanged", function(_, w, h) onResize(w, h) end)
+        onResize(f:GetWidth(), f:GetHeight())
+    end
+    return grip
+end
+
 function UI.CreateButton(parent, text, width, onClick)
     local b = CreateFrame("Button", nil, parent, "UIPanelButtonTemplate")
     b:SetSize(width or 100, 22)
@@ -203,6 +242,7 @@ function UI.CreateTextArea(parent, width, height)
     edit:SetScript("OnEscapePressed", edit.ClearFocus)
     scroll:SetScrollChild(edit)
     holder:SetScript("OnMouseDown", function() edit:SetFocus() end)
+    holder:SetScript("OnSizeChanged", function(_, w) edit:SetWidth(math.max(1, w - 36)) end)
     return holder, edit
 end
 

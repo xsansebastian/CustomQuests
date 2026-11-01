@@ -7,7 +7,8 @@ local Editor = {}
 ns.Editor = Editor
 
 -- Three tabs: general settings, texts, and stages with their objectives.
-local WIDTH, HEIGHT = 620, 540
+local WIDTH, HEIGHT = 620, 540 -- also the smallest size the window can take
+local MAX_SIZE = { 1100, 900 }
 local ROW_HEIGHT = 34
 local MAX_FIELDS = 4
 local TABS = { "general", "texts", "objectives" }
@@ -16,6 +17,8 @@ local window, fields, stageLabel, stageText, errorText
 local panels, tabButtons = {}, {}
 local objectiveRows = {}
 local draft, draftID, stageIndex
+local innerWidth = WIDTH - 40 -- width of what fills a panel; follows the window
+local textAreas = {} -- the Texts tab boxes that stretch with the window
 
 -- Field specs per objective type. kind: "number" | "string" | "item";
 -- scale converts stored 0..1 values to the percentages shown to the user.
@@ -101,7 +104,7 @@ local renderObjectives
 local function createObjectiveRow(i)
     local panel = panels.objectives
     local row = CreateFrame("Frame", nil, panel)
-    row:SetSize(WIDTH - 40, ROW_HEIGHT)
+    row:SetSize(innerWidth, ROW_HEIGHT)
     row:SetPoint("TOPLEFT", 0, -40 - (i - 1) * ROW_HEIGHT)
 
     row.type = UI.CreateDropdown(row, 100, function() return TYPE_ITEMS end,
@@ -258,6 +261,7 @@ local function labeled(parent, text, widget, x, y)
     local label = UI.CreateLabel(parent, text)
     label:SetPoint("TOPLEFT", x, y)
     widget:SetPoint("TOPLEFT", label, "BOTTOMLEFT", 4, -2)
+    widget.label = label
     return widget
 end
 
@@ -347,11 +351,9 @@ local function createGeneralPanel(panel)
         end), 0, -108)
     fields.chainPath = UI.CreateLabel(panel, "", "GameFontHighlight")
     fields.chainPath:SetPoint("TOPLEFT", fields.requires, "BOTTOMLEFT", 0, -8)
-    fields.chainPath:SetWidth(WIDTH - 60)
     fields.chainPath:SetSpacing(3)
-    local hint = UI.CreateLabel(panel, L["CHAIN_HINT"], "GameFontDisableSmall")
-    hint:SetPoint("TOPLEFT", fields.chainPath, "BOTTOMLEFT", 0, -8)
-    hint:SetWidth(WIDTH - 60)
+    fields.chainHint = UI.CreateLabel(panel, L["CHAIN_HINT"], "GameFontDisableSmall")
+    fields.chainHint:SetPoint("TOPLEFT", fields.chainPath, "BOTTOMLEFT", 0, -8)
 end
 
 -- Texts tab ------------------------------------------------------------------------
@@ -415,7 +417,8 @@ local function createTextsPanel(panel)
     createToolbar(panel)
 
     local descArea
-    descArea, fields.description = UI.CreateTextArea(panel, WIDTH - 40, 100)
+    descArea, fields.description = UI.CreateTextArea(panel, innerWidth, 100)
+    textAreas.description = descArea
     labeled(panel, L["F_DESCRIPTION"], descArea, 0, -28)
     fields.description:SetMaxLetters(Model.MAX_TEXT)
     fields.description:SetScript("OnEditFocusGained", function(self) lastTextField = self end)
@@ -425,7 +428,8 @@ local function createTextsPanel(panel)
     end)
 
     local rewardArea
-    rewardArea, fields.reward = UI.CreateTextArea(panel, WIDTH - 40, 60)
+    rewardArea, fields.reward = UI.CreateTextArea(panel, innerWidth, 60)
+    textAreas.reward = rewardArea
     labeled(panel, L["F_REWARD"], rewardArea, 0, -152)
     fields.reward:SetMaxLetters(Model.MAX_TEXT)
     fields.reward:SetScript("OnEditFocusGained", function(self) lastTextField = self end)
@@ -435,7 +439,8 @@ local function createTextsPanel(panel)
     end)
 
     local completionArea
-    completionArea, fields.completion = UI.CreateTextArea(panel, WIDTH - 40, 60)
+    completionArea, fields.completion = UI.CreateTextArea(panel, innerWidth, 60)
+    textAreas.completion = completionArea
     labeled(panel, L["F_COMPLETION"], completionArea, 0, -232)
     fields.completion:SetMaxLetters(Model.MAX_TEXT)
     fields.completion:SetScript("OnEditFocusGained", function(self) lastTextField = self end)
@@ -445,7 +450,8 @@ local function createTextsPanel(panel)
     end)
 
     local box = CreateFrame("Frame", nil, panel, "BackdropTemplate")
-    box:SetSize(WIDTH - 40, 80)
+    box:SetSize(innerWidth, 80)
+    textAreas.preview = box
     box:SetBackdrop({
         bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
         edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
@@ -455,12 +461,34 @@ local function createTextsPanel(panel)
     labeled(panel, L["TB_PREVIEW"], box, 0, -312)
     preview = box:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
     preview:SetPoint("TOPLEFT", 8, -8)
-    preview:SetSize(WIDTH - 60, 64)
+    preview:SetSize(innerWidth - 20, 64)
     preview:SetJustifyH("LEFT")
     preview:SetJustifyV("TOP")
 end
 
 -- Window ---------------------------------------------------------------------------
+
+-- Fits the tabs to the window: boxes get the extra width, and the extra height
+-- goes half to the description and half to the preview.
+local function layout(w, h)
+    innerWidth = w - 40
+    for _, row in ipairs(objectiveRows) do row:SetWidth(innerWidth) end
+    fields.chainPath:SetWidth(innerWidth - 20)
+    fields.chainHint:SetWidth(innerWidth - 20)
+
+    local extra = math.max(0, h - HEIGHT)
+    local toDescription = math.floor(extra / 2)
+    local heights = { description = 100 + toDescription, reward = 60, completion = 60,
+                      preview = 80 + extra - toDescription }
+    local tops = { description = -28, reward = -152 - toDescription, completion = -232 - toDescription,
+                   preview = -312 - toDescription }
+    for name, area in pairs(textAreas) do
+        area:SetSize(innerWidth, heights[name])
+        area.label:ClearAllPoints()
+        area.label:SetPoint("TOPLEFT", 0, tops[name])
+    end
+    preview:SetSize(innerWidth - 20, heights.preview - 16)
+end
 
 local function loadDraft()
     fields.title:SetText(draft.title or "")
@@ -584,6 +612,7 @@ local function create()
     window:SetScript("OnHide", function()
         if helpWindow then helpWindow:Hide() end
     end)
+    UI.MakeResizable(window, WIDTH, HEIGHT, MAX_SIZE[1], MAX_SIZE[2], layout)
 end
 
 -- Opens a working copy; nothing is saved until "Save" passes validation.

@@ -7,9 +7,13 @@ local Journal = {}
 ns.Journal = Journal
 
 local WIDTH, HEIGHT = 660, 460
-local LIST_WIDTH = 230
+local LIST_DEFAULT, MIN_LIST = 230, 170
+local listPref = LIST_DEFAULT -- the width the player chose for the tree panel
+local listWidth = LIST_DEFAULT -- listPref, kept inside what the window allows
 local ROW_HEIGHT = 38
-local DETAIL_WIDTH = WIDTH - LIST_WIDTH - 90
+local MIN_SIZE, MAX_SIZE = { 560, 380 }, { 1100, 900 }
+local detailWidth = WIDTH - listWidth - 90 -- follows the window width
+local META_GAP = 10 -- space between the detail title and the line under it
 
 local window, list, detail
 local tabButtons = {}
@@ -30,7 +34,7 @@ local function getRow(i)
     local row = rows[i]
     if row then row:Show() return row end
     row = CreateFrame("Button", nil, list.content)
-    row:SetSize(LIST_WIDTH - 4, ROW_HEIGHT)
+    row:SetSize(listWidth - 4, ROW_HEIGHT)
     row:SetPoint("TOPLEFT", 0, -(i - 1) * ROW_HEIGHT)
     row:SetHighlightTexture("Interface\\QuestFrame\\UI-QuestTitleHighlight", "ADD")
     row.selectedTex = row:CreateTexture(nil, "BACKGROUND")
@@ -61,11 +65,11 @@ local function getRow(i)
     row.title = UI.CreateLabel(row, "", "GameFontNormal")
     -- Text is anchored to the row, not the icon, so the two lines keep their distance.
     row.title:SetPoint("TOPLEFT", row, "TOPLEFT", 32, -5)
-    row.title:SetWidth(LIST_WIDTH - 40)
+    row.title:SetWidth(listWidth - 40)
     row.title:SetWordWrap(false)
     row.sub = UI.CreateLabel(row, "", "GameFontHighlightSmall")
     row.sub:SetPoint("BOTTOMLEFT", row, "BOTTOMLEFT", 32, 5)
-    row.sub:SetWidth(LIST_WIDTH - 40)
+    row.sub:SetWidth(listWidth - 40)
     row.sub:SetWordWrap(false)
     row:SetScript("OnClick", function(self)
         state.selected[state.tab] = self.id
@@ -161,10 +165,10 @@ local function refreshList(entries)
         row.icon:SetPoint("LEFT", row, "LEFT", 18 + indent, 0)
         row.title:ClearAllPoints()
         row.title:SetPoint("TOPLEFT", row, "TOPLEFT", 44 + indent, -5)
-        row.title:SetWidth(LIST_WIDTH - 50 - indent)
+        row.title:SetWidth(listWidth - 50 - indent)
         row.sub:ClearAllPoints()
         row.sub:SetPoint("BOTTOMLEFT", row, "BOTTOMLEFT", 44 + indent, 5)
-        row.sub:SetWidth(LIST_WIDTH - 50 - indent)
+        row.sub:SetWidth(listWidth - 50 - indent)
         row.title:SetText(entry.title)
         row.sub:SetText(entry.sub)
         row.selectedTex:SetShown(entry.id == state.selected[state.tab])
@@ -184,7 +188,7 @@ local function getObjectiveRow(i)
     if r then r:Show() return r end
     r = CreateFrame("Frame", nil, detail.content)
     -- One compact line: label with its count, then +/- for manual goals.
-    r:SetSize(DETAIL_WIDTH, OBJECTIVE_ROW_HEIGHT)
+    r:SetSize(detailWidth, OBJECTIVE_ROW_HEIGHT)
     r.label = UI.CreateLabel(r, "", "GameFontHighlightSmall")
     r.label:SetPoint("LEFT")
     r.label:SetWordWrap(false)
@@ -246,7 +250,7 @@ local function layoutDetail(title, meta, body, widget)
     detail.title:SetText(title)
     detail.meta:SetText(meta)
     detail.body:SetText(body)
-    local y = -(detail.title:GetStringHeight() + detail.meta:GetStringHeight() + 10)
+    local y = -(detail.title:GetStringHeight() + detail.meta:GetStringHeight() + META_GAP + 6)
     if widget then
         widget:ClearAllPoints()
         widget:SetPoint("TOPLEFT", 0, y)
@@ -266,9 +270,9 @@ local function showTitleIcon(kind, iconState, questID, ready)
     detail.turnin:Show()
     detail.title:ClearAllPoints()
     detail.title:SetPoint("TOPLEFT", 28, 0)
-    detail.title:SetWidth(DETAIL_WIDTH - 28)
+    detail.title:SetWidth(detailWidth - 28)
     detail.meta:ClearAllPoints()
-    detail.meta:SetPoint("TOPLEFT", detail.title, "BOTTOMLEFT", -28, -4)
+    detail.meta:SetPoint("TOPLEFT", detail.title, "BOTTOMLEFT", -28, -META_GAP)
 end
 
 local function showActive(id)
@@ -291,11 +295,12 @@ local function showActive(id)
             local r = getObjectiveRow(i)
             r.index = i
             r:SetPoint("TOPLEFT", 0, y)
+            r:SetWidth(detailWidth)
             r.label:SetText("- " .. UI.ObjectiveLine(quest, i, obj))
             local manual = obj.type == "manual"
             r.minus:SetShown(manual)
             r.plus:SetShown(manual)
-            r.label:SetWidth(DETAIL_WIDTH - (manual and 48 or 0))
+            r.label:SetWidth(detailWidth - (manual and 48 or 0))
             y = y - OBJECTIVE_ROW_HEIGHT
         end
     end
@@ -369,9 +374,9 @@ local function refreshDetail(entries)
     detail.turnin:Hide()
     detail.title:ClearAllPoints()
     detail.title:SetPoint("TOPLEFT")
-    detail.title:SetWidth(DETAIL_WIDTH)
+    detail.title:SetWidth(detailWidth)
     detail.meta:ClearAllPoints()
-    detail.meta:SetPoint("TOPLEFT", detail.title, "BOTTOMLEFT", 0, -4)
+    detail.meta:SetPoint("TOPLEFT", detail.title, "BOTTOMLEFT", 0, -META_GAP)
     local selected = state.selected[state.tab]
     local exists = false
     for _, e in ipairs(entries) do if e.id == selected then exists = true end end
@@ -398,6 +403,9 @@ end
 
 local function create()
     window = UI.CreateWindow("CustomQuestsJournal", WIDTH, HEIGHT, "CustomQuests")
+    local savedList = tonumber(Model.account.windowSizes.journalList)
+    if savedList then listPref = math.max(MIN_LIST, savedList) end
+    listWidth = listPref
 
     -- Two buttons: Templates, and a swap between Active and History that always
     -- offers the view you are not in.
@@ -428,14 +436,14 @@ local function create()
     importButton:SetPoint("RIGHT", newButton, "LEFT", -4, 0)
     -- Under the tree: "Edit list" turns on the checkboxes; then "Delete (N)" removes
     -- the ticked templates and "Done" turns them off again.
-    local editButton = UI.CreateButton(window, L["LIST_EDIT"], LIST_WIDTH - 10, function()
+    local editButton = UI.CreateButton(window, L["LIST_EDIT"], listWidth - 10, function()
         state.editing = not state.editing
         state.checked = {}
         Journal.Refresh()
     end)
-    editButton:SetPoint("BOTTOMRIGHT", window, "BOTTOMLEFT", LIST_WIDTH + 4, 12)
+    editButton:SetPoint("BOTTOMRIGHT", window, "BOTTOMLEFT", listWidth + 4, 12)
     tabButtons.edit = editButton
-    local deleteButton = UI.CreateButton(window, DELETE, LIST_WIDTH - 114, function()
+    local deleteButton = UI.CreateButton(window, DELETE, listWidth - 114, function()
         local ids = {}
         for id in pairs(state.checked) do ids[#ids + 1] = id end
         if #ids == 0 then return end
@@ -447,28 +455,38 @@ local function create()
     tabButtons.templateActions = { newButton, importButton, editButton }
 
     list = {}
-    list.scroll, list.content = createScroll(window, LIST_WIDTH - 4)
+    list.scroll, list.content = createScroll(window, listWidth - 4)
     list.scroll:SetPoint("TOPLEFT", 12, -60)
-    list.scroll:SetSize(LIST_WIDTH - 4, HEIGHT - 76)
+    list.scroll:SetWidth(listWidth - 4)
     list.empty = UI.CreateLabel(window, "", "GameFontDisableSmall")
     list.empty:SetPoint("TOPLEFT", list.scroll, "TOPLEFT", 4, -4)
-    list.empty:SetWidth(LIST_WIDTH - 20)
+    list.empty:SetWidth(listWidth - 20)
 
     local divider = window:CreateTexture(nil, "ARTWORK")
     divider:SetColorTexture(1, 1, 1, 0.15)
-    divider:SetSize(1, HEIGHT - 76)
-    divider:SetPoint("TOPLEFT", LIST_WIDTH + 30, -60)
+    divider:SetWidth(1)
+    divider:SetPoint("TOPLEFT", listWidth + 30, -60)
+    divider:SetPoint("BOTTOMLEFT", window, "BOTTOMLEFT", listWidth + 30, 16)
+
+    local splitter = CreateFrame("Button", nil, window)
+    splitter:SetWidth(8)
+    splitter:SetFrameLevel(window:GetFrameLevel() + 10)
+    local splitterGlow = splitter:CreateTexture(nil, "HIGHLIGHT")
+    splitterGlow:SetColorTexture(1, 0.82, 0, 0.35)
+    splitterGlow:SetWidth(2)
+    splitterGlow:SetPoint("TOP")
+    splitterGlow:SetPoint("BOTTOM")
 
     detail = { buttons = {} }
     detail.frame = CreateFrame("Frame", nil, window)
-    detail.frame:SetPoint("TOPLEFT", LIST_WIDTH + 42, -60)
+    detail.frame:SetPoint("TOPLEFT", listWidth + 42, -60)
     detail.frame:SetPoint("BOTTOMRIGHT", -14, 14)
-    detail.scroll, detail.content = createScroll(detail.frame, DETAIL_WIDTH)
+    detail.scroll, detail.content = createScroll(detail.frame, detailWidth)
     detail.scroll:SetPoint("TOPLEFT")
     detail.scroll:SetPoint("BOTTOMRIGHT", -24, 30)
     detail.title = UI.CreateLabel(detail.content, "", "GameFontNormalLarge")
     detail.title:SetPoint("TOPLEFT")
-    detail.title:SetWidth(DETAIL_WIDTH)
+    detail.title:SetWidth(detailWidth)
     -- Yellow "?" next to the title of a quest that is ready: opens the turn-in window.
     detail.turnin = CreateFrame("Button", nil, detail.content)
     detail.turnin:SetSize(22, 22)
@@ -487,15 +505,60 @@ local function create()
     detail.turnin:SetScript("OnLeave", GameTooltip_Hide)
     detail.turnin:Hide()
     detail.meta = UI.CreateLabel(detail.content, "", "GameFontHighlightSmall")
-    detail.meta:SetPoint("TOPLEFT", detail.title, "BOTTOMLEFT", 0, -4)
-    detail.meta:SetWidth(DETAIL_WIDTH)
+    detail.meta:SetPoint("TOPLEFT", detail.title, "BOTTOMLEFT", 0, -META_GAP)
+    detail.meta:SetWidth(detailWidth)
     detail.followUp = UI.CreateButton(detail.content, L["ADD_FOLLOW_UP"], 190)
     detail.followUp:Hide()
     detail.body = UI.CreateLabel(detail.content, "", "GameFontHighlight")
-    detail.body:SetWidth(DETAIL_WIDTH)
+    detail.body:SetWidth(detailWidth)
     detail.body:SetSpacing(2)
 
     window:SetScript("OnShow", Journal.Refresh)
+    -- Fits everything that depends on the tree panel's width: the panel itself,
+    -- the divider, the detail beside it and the buttons under the tree.
+    local function relayout(windowWidth)
+        listWidth = math.min(listPref, math.max(MIN_LIST, windowWidth - 300))
+        list.content:SetWidth(listWidth - 4)
+        list.scroll:SetWidth(listWidth - 4)
+        list.empty:SetWidth(listWidth - 20)
+        for _, row in ipairs(rows) do row:SetWidth(listWidth - 4) end
+        divider:ClearAllPoints()
+        divider:SetPoint("TOPLEFT", listWidth + 30, -60)
+        divider:SetPoint("BOTTOMLEFT", window, "BOTTOMLEFT", listWidth + 30, 16)
+        splitter:ClearAllPoints()
+        splitter:SetPoint("TOPLEFT", listWidth + 26, -60)
+        splitter:SetPoint("BOTTOMLEFT", window, "BOTTOMLEFT", listWidth + 26, 16)
+        detail.frame:ClearAllPoints()
+        detail.frame:SetPoint("TOPLEFT", listWidth + 42, -60)
+        detail.frame:SetPoint("BOTTOMRIGHT", -14, 14)
+        tabButtons.edit:ClearAllPoints()
+        tabButtons.edit:SetPoint("BOTTOMRIGHT", window, "BOTTOMLEFT", listWidth + 4, 12)
+        tabButtons.delete:SetWidth(listWidth - 114)
+        detailWidth = windowWidth - listWidth - 90
+        detail.content:SetWidth(detailWidth)
+        detail.meta:SetWidth(detailWidth)
+        detail.body:SetWidth(detailWidth)
+    end
+
+    -- Drag the divider to change how wide the tree panel is.
+    splitter:SetScript("OnMouseDown", function(self)
+        self:SetScript("OnUpdate", function()
+            local x = GetCursorPosition() / window:GetEffectiveScale() - window:GetLeft()
+            listPref = math.max(MIN_LIST, math.min(x - 30, window:GetWidth() - 300))
+            relayout(window:GetWidth())
+            Journal.Refresh()
+        end)
+    end)
+    splitter:SetScript("OnMouseUp", function(self)
+        self:SetScript("OnUpdate", nil)
+        Model.account.windowSizes.journalList = math.floor(listPref + 0.5)
+    end)
+
+    -- The tree keeps the width you gave it; the detail takes whatever the window gains.
+    UI.MakeResizable(window, MIN_SIZE[1], MIN_SIZE[2], MAX_SIZE[1], MAX_SIZE[2], function(w)
+        relayout(w)
+        if window:IsShown() then Journal.Refresh() end
+    end)
     Util.On("QUESTS_CHANGED", function() if window:IsShown() then Journal.Refresh() end end)
 end
 
@@ -534,9 +597,11 @@ function Journal.Refresh()
     local editing = onTemplates and state.editing
     tabButtons.delete:SetShown(editing)
     tabButtons.edit:SetText(editing and DONE or L["LIST_EDIT"])
-    tabButtons.edit:SetWidth(editing and 100 or LIST_WIDTH - 10)
-    -- On Templates the tree is shorter to leave room for the buttons under it.
-    list.scroll:SetHeight(HEIGHT - (onTemplates and 106 or 76))
+    tabButtons.edit:SetWidth(editing and 100 or listWidth - 10)
+    -- On Templates the tree stops higher, to leave room for the buttons under it.
+    list.scroll:ClearAllPoints()
+    list.scroll:SetPoint("TOPLEFT", window, "TOPLEFT", 12, -60)
+    list.scroll:SetPoint("BOTTOMLEFT", window, "BOTTOMLEFT", 12, onTemplates and 46 or 16)
     window.TitleText:SetText("CustomQuests · " .. L["TAB_" .. state.tab:upper()])
     local entries = buildEntries()
     refreshList(entries)

@@ -68,7 +68,8 @@ local function create()
     window = UI.CreateWindow("CustomQuestsTransfer", 440, 280, "")
     local area
     area, edit = UI.CreateTextArea(window, 410, 180)
-    area:SetPoint("TOP", 0, -32)
+    area:SetPoint("TOPLEFT", 15, -32)
+    area:SetPoint("BOTTOMRIGHT", -15, 44)
     edit:SetMaxLetters(Serializer.MAX_LENGTH)
 
     status = UI.CreateLabel(window, "", "GameFontHighlightSmall")
@@ -79,6 +80,7 @@ local function create()
     actionButton:SetPoint("BOTTOMRIGHT", -16, 12)
     UI.CreateButton(window, CLOSE, 80, function() window:Hide() end)
         :SetPoint("RIGHT", actionButton, "LEFT", -6, 0)
+    UI.MakeResizable(window, 360, 220, 900, 700)
 end
 
 -- Exports the template, or its whole chain when it belongs to one.

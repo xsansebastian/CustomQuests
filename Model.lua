@@ -204,6 +204,7 @@ function Model.InitDB(accountDB, charDB)
     accountDB.recentIcons = nil -- the icon picker is gone
     accountDB.chainCollapsed = type(accountDB.chainCollapsed) == "table" and accountDB.chainCollapsed or {}
     accountDB.minimap = accountDB.minimap or { angle = 225, hidden = false }
+    accountDB.windowSizes = type(accountDB.windowSizes) == "table" and accountDB.windowSizes or {}
     accountDB.options = Model.CleanOptions(accountDB.options)
     charDB.schema = charDB.schema or Model.SCHEMA
     charDB.active = charDB.active or {}
