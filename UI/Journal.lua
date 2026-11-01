@@ -8,7 +8,7 @@ ns.Journal = Journal
 
 local WIDTH, HEIGHT = 660, 460
 local LIST_WIDTH = 230
-local ROW_HEIGHT = 34
+local ROW_HEIGHT = 38
 local DETAIL_WIDTH = WIDTH - LIST_WIDTH - 90
 
 local window, list, detail
@@ -39,12 +39,13 @@ local function getRow(i)
     row.icon:SetSize(20, 20)
     row.icon:SetPoint("LEFT", 4, 0)
     row.title = UI.CreateLabel(row, "", "GameFontNormal")
-    row.title:SetPoint("TOPLEFT", row.icon, "TOPRIGHT", 6, 0)
-    row.title:SetWidth(LIST_WIDTH - 44)
+    -- Text is anchored to the row, not the icon, so the two lines keep their distance.
+    row.title:SetPoint("TOPLEFT", row, "TOPLEFT", 32, -5)
+    row.title:SetWidth(LIST_WIDTH - 40)
     row.title:SetWordWrap(false)
     row.sub = UI.CreateLabel(row, "", "GameFontHighlightSmall")
-    row.sub:SetPoint("BOTTOMLEFT", row.icon, "BOTTOMRIGHT", 6, 0)
-    row.sub:SetWidth(LIST_WIDTH - 44)
+    row.sub:SetPoint("BOTTOMLEFT", row, "BOTTOMLEFT", 32, 5)
+    row.sub:SetWidth(LIST_WIDTH - 40)
     row.sub:SetWordWrap(false)
     row:SetScript("OnClick", function(self)
         state.selected[state.tab] = self.id
