@@ -56,6 +56,7 @@ function handlers.PLAYER_LOGIN()
     end
     ns.api.Print(L["LOADED"]:format(ns.api.GetMetadata("Version") or "?"))
     if ns.Tracker then ns.Tracker.Init() end
+    if ns.Minimap then ns.Minimap.Init() end
     ns.RefreshAll()
     ns.TrackProgress() -- records the starting point so login doesn't announce old progress
     C_Timer.NewTicker(60, function()
@@ -252,6 +253,10 @@ end
 function commands.sample()
     local id = ns.Samples.InstallAll()
     if ns.Journal then ns.Journal.ShowTemplate(id) end
+end
+
+function commands.minimap()
+    if ns.Minimap then ns.Minimap.Toggle() end
 end
 
 function commands.help()

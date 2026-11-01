@@ -6,7 +6,7 @@ local L = ns.L
 -- General
 L["LOADED"] = "v%s geladen. Tippe /cq, um dein Questbuch zu öffnen."
 L["WRONG_CLIENT"] = "Dieses Paket ist für %s gedacht und funktioniert auf diesem Client eventuell nicht."
-L["HELP"] = "/cq - Questbuch · /cq tracker - Verfolgung ein-/ausblenden · /cq sample - Beispielquest · /cq debug - Info · /cq reset - Zurücksetzen erzwingen"
+L["HELP"] = "/cq - Questbuch · /cq tracker - Verfolgung ein-/ausblenden · /cq sample - Beispielquest · /cq minimap - Minikarten-Schaltfläche ein-/ausblenden · /cq debug - Info · /cq reset - Zurücksetzen erzwingen"
 L["QUEST_COMPLETED"] = "Quest abgeschlossen: %s"
 L["OBJECTIVE_DONE"] = "Abgeschlossen"
 L["QUEST_READY"] = "%s: Ziele erreicht, bereit zum Abschließen!"
@@ -18,9 +18,16 @@ L["TURNIN_COMPLETE_SHORT"] = "Abschließen"
 L["TURNIN_DEFAULT"] = "Du hast alle Ziele erreicht."
 L["F_COMPLETION"] = "Text bei Questabschluss"
 L["STAGE_ADVANCED"] = "%s: Abschnitt %d/%d"
-L["TRACKER_TOOLTIP"] = "Umschalt+Ziehen zum Verschieben. Linksklick öffnet das Questbuch, Rechtsklick klappt ein. Klick auf einen Questtitel klappt die Quest ein oder aus."
+L["TRACKER_TOOLTIP"] = "Umschalt+Ziehen zum Verschieben. Linksklick öffnet das Questbuch. Rechtsklick auf die Kopfzeile klappt alles ein, auf einen Questtitel klappt diese Quest ein oder aus."
+
+L["MM_JOURNAL"] = "Linksklick: Questbuch öffnen"
+L["MM_TRACKER"] = "Rechtsklick: Verfolgung ein-/ausblenden"
+L["MM_MOVE"] = "Umschalt+Ziehen: diese Schaltfläche verschieben"
+L["MM_HIDDEN"] = "Minikarten-Schaltfläche ausgeblendet. Tippe /cq minimap, um sie wieder anzuzeigen."
+L["MM_SHOWN"] = "Minikarten-Schaltfläche angezeigt."
 
 -- Journal
+L["BACK"] = "Zurück"
 L["TAB_ACTIVE"] = "Aktiv"
 L["TAB_TEMPLATES"] = "Vorlagen"
 L["TAB_HISTORY"] = "Verlauf"
@@ -127,6 +134,15 @@ L["H_MY_POSITION"] = "Meine Position"
 L["ADD_OBJECTIVE"] = "Ziel hinzufügen"
 L["FALLBACK_TITLE"] = "Ungefähr in Instanzen"
 L["FALLBACK_HELP"] = "In Instanzen verbirgt das Spiel, welcher NPC gestorben ist. Wenn aktiviert, zählt jeder Gruppenkill auf dieser Karte. Benötigt eine Karten-ID."
+
+L["HINT_ITEM"] = "Suche den Gegenstand auf Wowhead: Die Zahl in der Adresse (wowhead.com/item=2772) ist die ID. Oder klicke hier mit Umschalt auf den Gegenstand."
+L["HINT_NPC"] = "Suche den NPC auf Wowhead: Die Zahl in der Adresse (wowhead.com/npc=448) ist die ID. Oder wähle ihn als Ziel und klicke auf Ziel."
+L["HINT_ENCOUNTER"] = "Die Begegnungs-ID. Besiege den Boss einmal und klicke auf Letzter Boss, um sie einzutragen."
+L["HINT_MAP"] = "Karten-ID einer Zone. Stelle dich dorthin und klicke auf Diese Karte oder Diese Unterzone, um sie einzutragen."
+
+L["HELP_BUTTON"] = "Hilfe"
+L["HELP_TITLE"] = "Hilfe zu Zielen"
+L["HELP_TEXT"] = "|cffffd200IDs finden|r\nSuche den Gegenstand oder NPC auf wowhead.com. Die Zahl in der Adresse seiner Seite ist die ID: wowhead.com/item=2772 ist Gegenstand 2772, wowhead.com/npc=448 ist NPC 448. Fahre über ein ID-Feld für eine Erinnerung.\n\n|cffffd200Gegenstand|r\nGib die Gegenstands-ID ein, oder klicke in das ID-Feld und klicke mit Umschalt auf den Gegenstand in deinen Taschen, bei einem Händler oder in einem Chatlink. Die ID wird automatisch eingetragen. Anzahl ist, wie viele du in den Taschen brauchst.\n\n|cffffd200Töten|r\nWähle den NPC als Ziel und klicke auf Ziel, um ID und Name einzutragen. Gib eine Karten-ID an, um nur dort zu zählen, oder lass den NPC leer und gib nur eine Karte an, um jeden Feind dieser Karte zu zählen. In Instanzen verbirgt das Spiel, wer gestorben ist: Aktiviere das Kästchen für eine ungefähre Zählung.\n\n|cffffd200Boss|r\nBesiege den Boss einmal und klicke dann auf Letzter Boss. Das trägt Begegnungs-ID und Namen ein.\n\n|cffffd200Zone und Unterzone|r\nZone zählt eine ganze Karte. Unterzone ist der Name unter der Minikarte, zum Beispiel ein Hof oder Lager in einer Zone. Stelle dich dorthin und klicke auf Diese Karte oder Diese Unterzone. Namen hängen von der Spielsprache ab.\n\n|cffffd200Ort|r\nStelle dich an die Stelle und klicke auf Meine Position. Radius ist, wie nah du herankommen musst, in Prozent der Karte.\n\n|cffffd200Stufe und Manuell|r\nStufe ist erledigt, wenn du sie erreichst. Manuelle Ziele zählst du selbst mit den Tasten + und - im Questbuch."
 
 -- Import / export
 L["EXPORT_TITLE"] = "Vorlage exportieren"

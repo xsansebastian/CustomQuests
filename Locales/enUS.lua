@@ -7,7 +7,7 @@ local L = ns.L
 -- General
 L["LOADED"] = "v%s loaded. Type /cq to open your journal."
 L["WRONG_CLIENT"] = "This package is built for %s and may not work on this client."
-L["HELP"] = "/cq - journal · /cq tracker - show/hide tracker · /cq sample - example quest · /cq debug - info · /cq reset - force resets"
+L["HELP"] = "/cq - journal · /cq tracker - show/hide tracker · /cq sample - example quest · /cq minimap - show/hide minimap button · /cq debug - info · /cq reset - force resets"
 L["QUEST_COMPLETED"] = "Quest completed: %s"
 L["OBJECTIVE_DONE"] = "Complete"
 L["QUEST_READY"] = "%s: objectives done, ready to complete!"
@@ -19,9 +19,16 @@ L["TURNIN_COMPLETE_SHORT"] = "Complete"
 L["TURNIN_DEFAULT"] = "You have met every objective."
 L["F_COMPLETION"] = "Quest completed text"
 L["STAGE_ADVANCED"] = "%s: stage %d/%d"
-L["TRACKER_TOOLTIP"] = "Shift+drag to move. Left-click opens the journal, right-click collapses. Click a quest title to fold or unfold it."
+L["TRACKER_TOOLTIP"] = "Shift+drag to move. Left-click opens the journal. Right-click the header to collapse all, or a quest title to fold that quest."
+
+L["MM_JOURNAL"] = "Left-click: open the journal"
+L["MM_TRACKER"] = "Right-click: show/hide the tracker"
+L["MM_MOVE"] = "Shift+drag: move this button"
+L["MM_HIDDEN"] = "Minimap button hidden. Type /cq minimap to show it again."
+L["MM_SHOWN"] = "Minimap button shown."
 
 -- Journal
+L["BACK"] = "Back"
 L["TAB_ACTIVE"] = "Active"
 L["TAB_TEMPLATES"] = "Templates"
 L["TAB_HISTORY"] = "History"
@@ -128,6 +135,15 @@ L["H_MY_POSITION"] = "My spot"
 L["ADD_OBJECTIVE"] = "Add objective"
 L["FALLBACK_TITLE"] = "Approximate in instances"
 L["FALLBACK_HELP"] = "Inside instances the game hides which NPC died. When checked, any group kill on this map counts. Requires a map ID."
+
+L["HINT_ITEM"] = "Find the item on Wowhead: the number in its address (wowhead.com/item=2772) is the ID. Or shift-click the item here."
+L["HINT_NPC"] = "Find the NPC on Wowhead: the number in its address (wowhead.com/npc=448) is the ID. Or target it and press Target."
+L["HINT_ENCOUNTER"] = "The encounter ID. Defeat the boss once and press Last boss to fill it in."
+L["HINT_MAP"] = "Map ID of a zone. Stand there and press This map or This subzone to fill it in."
+
+L["HELP_BUTTON"] = "Help"
+L["HELP_TITLE"] = "Objectives help"
+L["HELP_TEXT"] = "|cffffd200Finding IDs|r\nSearch the item or NPC on wowhead.com. The number in the address of its page is the ID: wowhead.com/item=2772 is item 2772, wowhead.com/npc=448 is NPC 448. Hover any ID box for a reminder.\n\n|cffffd200Item|r\nType the item ID, or click the ID box and shift-click the item in your bags, a vendor or a chat link. The ID is filled in for you. Count is how many you need in your bags.\n\n|cffffd200Kill|r\nTarget the NPC and press Target to fill in its ID and name. Add a map ID to count it only there, or leave the NPC empty and give only a map to count any enemy on that map. In instances the game hides who died: tick the box to count approximately.\n\n|cffffd200Boss|r\nDefeat the boss once, then press Last boss. It fills in the encounter ID and name.\n\n|cffffd200Zone and Subzone|r\nZone counts a whole map. Subzone is the name shown under the minimap, for example a farm or a camp inside a zone. Stand there and press This map or This subzone. Names depend on your game language.\n\n|cffffd200Location|r\nStand on the spot and press My spot. Radius is how close you need to get, in percent of the map.\n\n|cffffd200Level and Manual|r\nLevel completes when you reach it. Manual objectives are counted by you with the + and - buttons in the journal."
 
 -- Import / export
 L["EXPORT_TITLE"] = "Export template"

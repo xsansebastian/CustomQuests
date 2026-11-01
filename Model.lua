@@ -185,6 +185,7 @@ function Model.InitDB(accountDB, charDB)
     accountDB.templates = accountDB.templates or {}
     accountDB.history = accountDB.history or {}
     accountDB.recentIcons = accountDB.recentIcons or {}
+    accountDB.minimap = accountDB.minimap or { angle = 225, hidden = false }
     charDB.schema = charDB.schema or Model.SCHEMA
     charDB.active = charDB.active or {}
     charDB.tracked = charDB.tracked or {}

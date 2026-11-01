@@ -6,7 +6,7 @@ local L = ns.L
 -- General
 L["LOADED"] = "v%s chargé. Tapez /cq pour ouvrir votre journal."
 L["WRONG_CLIENT"] = "Ce paquet est prévu pour %s et peut ne pas fonctionner sur ce client."
-L["HELP"] = "/cq - journal · /cq tracker - afficher/masquer le suivi · /cq sample - quête d'exemple · /cq debug - infos · /cq reset - forcer les réinitialisations"
+L["HELP"] = "/cq - journal · /cq tracker - afficher/masquer le suivi · /cq sample - quête d'exemple · /cq minimap - afficher/masquer le bouton de la minicarte · /cq debug - infos · /cq reset - forcer les réinitialisations"
 L["QUEST_COMPLETED"] = "Quête terminée : %s"
 L["OBJECTIVE_DONE"] = "Terminé"
 L["QUEST_READY"] = "%s : objectifs atteints, prête à être terminée !"
@@ -18,9 +18,16 @@ L["TURNIN_COMPLETE_SHORT"] = "Terminer"
 L["TURNIN_DEFAULT"] = "Vous avez rempli tous les objectifs."
 L["F_COMPLETION"] = "Texte de fin de quête"
 L["STAGE_ADVANCED"] = "%s : étape %d/%d"
-L["TRACKER_TOOLTIP"] = "Maj+glisser pour déplacer. Clic gauche ouvre le journal, clic droit réduit. Cliquez sur le titre d'une quête pour la replier ou la déplier."
+L["TRACKER_TOOLTIP"] = "Maj+glisser pour déplacer. Clic gauche ouvre le journal. Clic droit sur l'en-tête réduit tout, sur le titre d'une quête replie ou déplie cette quête."
+
+L["MM_JOURNAL"] = "Clic gauche : ouvrir le journal"
+L["MM_TRACKER"] = "Clic droit : afficher/masquer le suivi"
+L["MM_MOVE"] = "Maj+glisser : déplacer ce bouton"
+L["MM_HIDDEN"] = "Bouton de la minicarte masqué. Tapez /cq minimap pour le réafficher."
+L["MM_SHOWN"] = "Bouton de la minicarte affiché."
 
 -- Journal
+L["BACK"] = "Retour"
 L["TAB_ACTIVE"] = "Actives"
 L["TAB_TEMPLATES"] = "Modèles"
 L["TAB_HISTORY"] = "Historique"
@@ -127,6 +134,15 @@ L["H_MY_POSITION"] = "Ma position"
 L["ADD_OBJECTIVE"] = "Ajouter un objectif"
 L["FALLBACK_TITLE"] = "Approximatif en instance"
 L["FALLBACK_HELP"] = "En instance, le jeu masque quel PNJ est mort. Si coché, toute mort de groupe sur cette carte compte. Nécessite un ID de carte."
+
+L["HINT_ITEM"] = "Cherchez l'objet sur Wowhead : le nombre dans son adresse (wowhead.com/item=2772) est l'ID. Ou Maj+clic sur l'objet ici."
+L["HINT_NPC"] = "Cherchez le PNJ sur Wowhead : le nombre dans son adresse (wowhead.com/npc=448) est l'ID. Ou ciblez-le et cliquez sur Cible."
+L["HINT_ENCOUNTER"] = "L'ID de la rencontre. Battez le boss une fois et cliquez sur Dernier boss pour le remplir."
+L["HINT_MAP"] = "ID de carte d'une zone. Placez-vous-y et cliquez sur Cette carte ou Cette sous-zone pour le remplir."
+
+L["HELP_BUTTON"] = "Aide"
+L["HELP_TITLE"] = "Aide des objectifs"
+L["HELP_TEXT"] = "|cffffd200Trouver les ID|r\nCherchez l'objet ou le PNJ sur wowhead.com. Le nombre dans l'adresse de sa page est l'ID : wowhead.com/item=2772 est l'objet 2772, wowhead.com/npc=448 est le PNJ 448. Survolez une case d'ID pour un rappel.\n\n|cffffd200Objet|r\nSaisissez l'ID de l'objet, ou cliquez dans la case d'ID puis Maj+clic sur l'objet dans vos sacs, chez un marchand ou dans un lien du chat. L'ID se remplit tout seul. Quantité est le nombre voulu dans vos sacs.\n\n|cffffd200Tuer|r\nCiblez le PNJ et cliquez sur Cible pour remplir son ID et son nom. Ajoutez un ID de carte pour ne compter que là, ou laissez le PNJ vide et indiquez seulement une carte pour compter n'importe quel ennemi de cette carte. En instance le jeu masque qui est mort : cochez la case pour un décompte approximatif.\n\n|cffffd200Boss|r\nBattez le boss une fois, puis cliquez sur Dernier boss. Cela remplit l'ID de la rencontre et le nom.\n\n|cffffd200Zone et Sous-zone|r\nZone compte une carte entière. Sous-zone est le nom affiché sous la minicarte, par exemple une ferme ou un camp dans une zone. Placez-vous là et cliquez sur Cette carte ou Cette sous-zone. Les noms dépendent de la langue du jeu.\n\n|cffffd200Lieu|r\nPlacez-vous à l'endroit voulu et cliquez sur Ma position. Rayon est la distance à atteindre, en pourcentage de la carte.\n\n|cffffd200Niveau et Manuel|r\nNiveau se termine en l'atteignant. Les objectifs manuels se comptent vous-même avec les boutons + et - du journal."
 
 -- Import / export
 L["EXPORT_TITLE"] = "Exporter le modèle"

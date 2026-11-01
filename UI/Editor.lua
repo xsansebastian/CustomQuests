@@ -77,6 +77,9 @@ local HELPERS = {
     end },
 }
 
+-- Hover help for fields whose value is an ID looked up elsewhere.
+local FIELD_HINTS = { itemID = "HINT_ITEM", npcID = "HINT_NPC", encounterID = "HINT_ENCOUNTER", mapID = "HINT_MAP" }
+
 local function typeLabel(t) return L["TYPE_" .. t:upper()] end
 local TYPE_ITEMS = UI.EnumItems(Model.OBJECTIVE_TYPES, typeLabel)
 
@@ -88,6 +91,7 @@ local function showTab(name)
         if tab == name then tabButtons[tab]:LockHighlight() else tabButtons[tab]:UnlockHighlight() end
     end
     fields.addObjective:SetShown(name == "objectives")
+    fields.help:SetShown(name == "objectives")
 end
 
 -- Objectives tab -------------------------------------------------------------------
@@ -121,6 +125,15 @@ local function createObjectiveRow(i)
         end)
         -- Shift-clicking an item while the box has focus inserts its link.
         e:SetScript("OnEditFocusGained", function(self) row.focused = self end)
+        e:SetScript("OnEnter", function(self)
+            local hint = self.spec and FIELD_HINTS[self.spec[1]]
+            if not hint then return end
+            GameTooltip:SetOwner(self, "ANCHOR_TOP")
+            GameTooltip:SetText(L[self.spec[2]])
+            GameTooltip:AddLine(L[hint], 1, 1, 1, true)
+            GameTooltip:Show()
+        end)
+        e:SetScript("OnLeave", GameTooltip_Hide)
         row.edits[f] = e
         row.labels[f] = UI.CreateLabel(row, "", "GameFontDisableSmall")
         row.labels[f]:SetPoint("BOTTOMLEFT", e, "TOPLEFT", -4, 0)
@@ -481,12 +494,42 @@ local function onInsertLink(link)
     for _, row in ipairs(objectiveRows) do
         local e = row.focused
         if row:IsShown() and e and e:HasFocus() and e.spec and e.spec[4] == "item" then
-            e:SetText(link)
-            currentStage().objectives[row.index].itemID = Util.ParseItemID(link)
+            local itemID = Util.ParseItemID(link)
+            if itemID then
+                e:SetText(tostring(itemID))
+                currentStage().objectives[row.index].itemID = itemID
+            end
         end
     end
 end
-if ChatEdit_InsertLink then hooksecurefunc("ChatEdit_InsertLink", onInsertLink) end
+-- Retail 12 moved link insertion to ChatFrameUtil; older clients still use the global.
+if ChatFrameUtil and ChatFrameUtil.InsertLink then
+    hooksecurefunc(ChatFrameUtil, "InsertLink", onInsertLink)
+elseif ChatEdit_InsertLink then
+    hooksecurefunc("ChatEdit_InsertLink", onInsertLink)
+end
+
+local helpWindow
+
+-- Explains where IDs come from and which buttons fill them in.
+local function showHelp()
+    if not helpWindow then
+        helpWindow = UI.CreateWindow("CustomQuestsEditorHelp", 480, 420, L["HELP_TITLE"])
+        helpWindow:SetFrameStrata("FULLSCREEN_DIALOG")
+        local scroll = CreateFrame("ScrollFrame", nil, helpWindow, "UIPanelScrollFrameTemplate")
+        scroll:SetPoint("TOPLEFT", 16, -34)
+        scroll:SetPoint("BOTTOMRIGHT", -34, 16)
+        local content = CreateFrame("Frame", nil, scroll)
+        content:SetSize(430, 1)
+        scroll:SetScrollChild(content)
+        local text = UI.CreateLabel(content, L["HELP_TEXT"], "GameFontHighlight")
+        text:SetPoint("TOPLEFT")
+        text:SetWidth(430)
+        text:SetSpacing(3)
+        content:SetHeight(text:GetStringHeight() + 10)
+    end
+    helpWindow:SetShown(not helpWindow:IsShown())
+end
 
 local function create()
     window = UI.CreateWindow("CustomQuestsEditor", WIDTH, HEIGHT, L["EDITOR_TITLE"])
@@ -516,9 +559,12 @@ local function create()
     end)
     fields.addObjective:SetPoint("BOTTOMLEFT", 20, 14)
 
+    fields.help = UI.CreateButton(window, L["HELP_BUTTON"], 80, showHelp)
+    fields.help:SetPoint("LEFT", fields.addObjective, "RIGHT", 6, 0)
+
     errorText = UI.CreateLabel(window, "", "GameFontHighlightSmall")
-    errorText:SetPoint("BOTTOMLEFT", 160, 18)
-    errorText:SetWidth(240)
+    errorText:SetPoint("BOTTOMLEFT", 250, 18)
+    errorText:SetWidth(170)
 
     local saveButton = UI.CreateButton(window, SAVE, 90, save)
     saveButton:SetPoint("BOTTOMRIGHT", -20, 14)
@@ -526,6 +572,7 @@ local function create()
         :SetPoint("RIGHT", saveButton, "LEFT", -6, 0)
 
     window:SetScript("OnHide", function()
+        if helpWindow then helpWindow:Hide() end
         if ns.IconPicker and CustomQuestsIconPicker then CustomQuestsIconPicker:Hide() end
     end)
 end

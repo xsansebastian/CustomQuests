@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.6.0
+
+- New minimap button: left-click opens the journal, right-click shows/hides the tracker, Shift+drag moves it. `/cq minimap` hides or shows it.
+- Tracker: quests and the tracker now fold with right-click only.
+- Journal: simpler buttons. One swaps between Active and History, Templates has its own button, and inside Templates the swap becomes Back. New and Import only appear in Templates.
+- Journal: removed the objective progress bars; counts stay in the text.
+- Editor: new Help button on the Objectives tab explaining where IDs come from (Wowhead) and which buttons fill each field, plus hints on the ID boxes.
+- Editor: shift-clicking an item now fills its ID on current clients.
+- Spanish: the quest giver label now reads "NPC".
+
 ## 0.5.1
 
 - Added German (deDE) and French (frFR) translations.
