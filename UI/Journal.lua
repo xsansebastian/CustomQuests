@@ -38,9 +38,6 @@ local function getRow(i)
     row.icon = row:CreateTexture(nil, "ARTWORK")
     row.icon:SetSize(24, 24)
     row.icon:SetPoint("LEFT", 4, 0)
-    row.mark = row:CreateTexture(nil, "OVERLAY")
-    row.mark:SetSize(18, 18)
-    row.mark:SetPoint("LEFT", 2, 0)
     row.title = UI.CreateLabel(row, "", "GameFontNormal")
     row.title:SetPoint("TOPLEFT", row.icon, "TOPRIGHT", 6, 0)
     row.title:SetWidth(LIST_WIDTH - 44)
@@ -57,7 +54,6 @@ local function getRow(i)
     return row
 end
 
-local firstObjectiveIcon = UI.TemplateIcon
 
 local function repeatLabel(mode)
     return L["REPEAT_" .. mode:upper()]
@@ -87,8 +83,9 @@ local function buildEntries()
                 end
                 sub = L["PROGRESS_SUMMARY"]:format(q.stage, #q.template.stages, done, #stage.objectives)
             end
-            entries[#entries + 1] = { id = e.id, icon = firstObjectiveIcon(q.template),
-                title = UI.QuestText(q.template.title), sub = sub, ready = ready }
+            entries[#entries + 1] = { id = e.id, kind = UI.QuestKind(q.template, q.templateID),
+                iconState = ready and "ready" or (q.state == "done" and "available" or "progress"),
+                title = UI.QuestText(q.template.title), sub = sub }
         end
     elseif state.tab == "templates" then
         for _, e in ipairs(Model.ListTemplates()) do
@@ -98,7 +95,8 @@ local function buildEntries()
             if not ok and (err == "ERR_LOCKED" or err == "ERR_LEVEL_LOW" or err == "ERR_LEVEL_HIGH") then
                 sub = "|cff808080" .. sub .. " · " .. L["LOCKED_SHORT"] .. "|r"
             end
-            entries[#entries + 1] = { id = e.id, icon = firstObjectiveIcon(t), title = UI.QuestText(t.title), sub = sub }
+            entries[#entries + 1] = { id = e.id, kind = UI.QuestKind(t, e.id), iconState = "available",
+                title = UI.QuestText(t.title), sub = sub }
         end
     else
         for i, row in ipairs(Lifecycle.GetHistorySummary()) do
@@ -114,12 +112,14 @@ local function refreshList(entries)
     for i, entry in ipairs(entries) do
         local row = getRow(i)
         row.id = entry.id
-        row.icon:SetTexture(entry.icon)
+        if entry.kind then
+            UI.SetQuestIcon(row.icon, entry.kind, entry.iconState)
+        else
+            row.icon:SetTexture(entry.icon)
+            row.icon:SetTexCoord(0, 1, 0, 1)
+        end
         row.title:SetText(entry.title)
         row.sub:SetText(entry.sub)
-        local marked = entry.ready and UI.SetTurnInTexture(row.mark)
-        row.mark:SetShown(marked or false)
-        row.icon:SetPoint("LEFT", marked and 22 or 4, 0)
         row.selectedTex:SetShown(entry.id == state.selected[state.tab])
     end
     list.content:SetHeight(math.max(1, #entries * ROW_HEIGHT))
@@ -204,6 +204,19 @@ local function layoutDetail(title, meta, body)
     return y
 end
 
+-- The quest's icon in front of the detail title (a turn-in button when ready);
+-- the title and the line under it move right to make room.
+local function showTitleIcon(kind, iconState, questID, ready)
+    UI.SetQuestIcon(detail.turnin.tex, kind, iconState)
+    detail.turnin.questID, detail.turnin.ready = questID, ready
+    detail.turnin:Show()
+    detail.title:ClearAllPoints()
+    detail.title:SetPoint("TOPLEFT", 30, 0)
+    detail.title:SetWidth(DETAIL_WIDTH - 30)
+    detail.meta:ClearAllPoints()
+    detail.meta:SetPoint("TOPLEFT", detail.title, "BOTTOMLEFT", -30, -4)
+end
+
 local function showActive(id)
     local quest = Lifecycle.Get(id)
     local template = quest.template
@@ -212,16 +225,11 @@ local function showActive(id)
     if quest.state == "done" then
         meta = meta .. "\n" .. L["RESETS_IN"]:format(UI.FormatDuration((quest.resetAt or 0) - ns.api.Now()))
     end
-    -- A ready quest shows the "?" in front of the title, which moves right to make room.
-    local ready = quest.state == "active" and quest.ready and UI.SetTurnInTexture(detail.turnin.tex)
-    if ready then
-        detail.title:ClearAllPoints()
-        detail.title:SetPoint("TOPLEFT", 30, 0)
-        detail.title:SetWidth(DETAIL_WIDTH - 30)
-        detail.meta:ClearAllPoints()
-        detail.meta:SetPoint("TOPLEFT", detail.title, "BOTTOMLEFT", -30, -4)
-    end
-    local y = layoutDetail(UI.InlineIcon(template, 20) .. "|cff" .. UI.QUEST_COLOR .. UI.QuestText(template.title) .. "|r",
+    local active = quest.state == "active"
+    local ready = active and quest.ready
+    showTitleIcon(UI.QuestKind(template, quest.templateID),
+        ready and "ready" or (active and "progress" or "available"), id, ready)
+    local y = layoutDetail("|cff" .. UI.QUEST_COLOR .. UI.QuestText(template.title) .. "|r",
         meta, bodyText(template, quest.stage))
 
     if quest.state == "active" then
@@ -238,9 +246,6 @@ local function showActive(id)
         end
     end
     detail.content:SetHeight(-y)
-
-    detail.turnin:SetShown(ready or false)
-    detail.turnin.questID = id
 
     local tracked = Model.char.tracked[id]
     local buttons = {
@@ -274,7 +279,8 @@ local function showTemplate(id)
             lines[#lines + 1] = "  - " .. UI.ObjectiveLabel(obj) .. (goal > 1 and (" x" .. goal) or "")
         end
     end
-    local y = layoutDetail(UI.InlineIcon(template, 20) .. "|cff" .. UI.QUEST_COLOR .. UI.QuestText(template.title) .. "|r",
+    showTitleIcon(UI.QuestKind(template, id), "available", id, false)
+    local y = layoutDetail("|cff" .. UI.QUEST_COLOR .. UI.QuestText(template.title) .. "|r",
         meta, table.concat(lines, "\n"))
     detail.content:SetHeight(-y)
 
@@ -401,8 +407,9 @@ local function create()
     detail.turnin.tex = detail.turnin:CreateTexture(nil, "ARTWORK")
     detail.turnin.tex:SetAllPoints()
     detail.turnin:SetHighlightTexture("Interface\\Buttons\\ButtonHilight-Square", "ADD")
-    detail.turnin:SetScript("OnClick", function(self) ns.TurnIn.Open(self.questID) end)
+    detail.turnin:SetScript("OnClick", function(self) if self.ready then ns.TurnIn.Open(self.questID) end end)
     detail.turnin:SetScript("OnEnter", function(self)
+        if not self.ready then return end
         GameTooltip:SetOwner(self, "ANCHOR_LEFT")
         GameTooltip:SetText(L["TURNIN_TITLE"])
         GameTooltip:AddLine(L["TURNIN_HELP"], 1, 1, 1, true)

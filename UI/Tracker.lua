@@ -76,8 +76,9 @@ local function getTitle(i)
         b.turnin:SetPoint("TOPLEFT", b, "TOPLEFT", 0, 0)
         b.turnin.tex = b.turnin:CreateTexture(nil, "ARTWORK")
         b.turnin.tex:SetAllPoints()
-        b.turnin:SetScript("OnClick", function() ns.TurnIn.Open(b.questID) end)
+        b.turnin:SetScript("OnClick", function(self) if self.ready then ns.TurnIn.Open(b.questID) end end)
         b.turnin:SetScript("OnEnter", function(self)
+            if not self.ready then return end
             GameTooltip:SetOwner(self, "ANCHOR_LEFT")
             GameTooltip:SetText(L["TURNIN_TITLE"])
             GameTooltip:AddLine(L["TURNIN_HELP"], 1, 1, 1, true)
@@ -235,13 +236,15 @@ function Tracker.Refresh()
             local folded = Model.char.questCollapsed[entry.id]
             local stages = #quest.template.stages
             title.questID = entry.id
-            local ready = quest.ready and UI.SetTurnInTexture(title.turnin.tex)
-            title.turnin:SetShown(ready or false)
-            -- The "?" sits in front of the title, so the text makes room for it.
+            -- The quest's icon sits in front of the title (a turn-in button once it is ready).
+            UI.SetQuestIcon(title.turnin.tex, UI.QuestKind(quest.template, quest.templateID),
+                quest.ready and "ready" or "progress")
+            title.turnin.ready = quest.ready
+            title.turnin:Show()
             title.text:ClearAllPoints()
-            title.text:SetPoint("TOPLEFT", ready and 18 or 0, 0)
-            title.text:SetWidth(WIDTH - 30 - PAD - (ready and 18 or 0))
-            title.text:SetText(("%s|cff%s%s|r%s%s"):format(UI.InlineIcon(quest.template, 12), UI.QUEST_COLOR,
+            title.text:SetPoint("TOPLEFT", 18, 0)
+            title.text:SetWidth(WIDTH - 30 - PAD - 18)
+            title.text:SetText(("|cff%s%s|r%s%s"):format(UI.QUEST_COLOR,
                 UI.QuestText(quest.template.title),
                 stages > 1 and (" (" .. quest.stage .. "/" .. stages .. ")") or "", folded and " [+]" or ""))
             title:ClearAllPoints()

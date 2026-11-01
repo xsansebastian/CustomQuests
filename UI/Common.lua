@@ -26,24 +26,51 @@ function UI.QuestText(text)
     return Util.ExpandTokens(Util.SafeText(text), ns.api.GetPlayerTokens())
 end
 
--- Yellow "?" shown on quests that are ready to be turned in.
-local TURNIN_ATLAS = "QuestTurnin"
+-- Quest icons: the game's own quest-giver icons, by kind of quest and its state.
+-- campaign = part of a chain, recurring = daily or weekly, plain = the rest.
+-- States: available (not accepted), progress (in the log), ready (to turn in).
+-- A name with a backslash is a texture file, otherwise an atlas.
+local QUEST_ICONS = {
+    campaign = { available = "CampaignAvailableQuestIcon", progress = "CampaignInProgressQuestIcon",
+                 ready = "CampaignActiveQuestIcon" },
+    recurring = { available = "Recurringavailablequesticon", progress = "RepeatableInProgressquesticon",
+                  ready = "Recurringactivequesticon" },
+    plain = { available = "Interface\\GossipFrame\\AvailableQuestIcon", progress = "SideInProgressquesticon",
+              ready = "QuestTurnin" },
+}
+-- Shown when an atlas doesn't exist on the client.
+local ICON_FILES = {
+    available = "Interface\\GossipFrame\\AvailableQuestIcon",
+    progress = "Interface\\GossipFrame\\ActiveQuestIcon",
+    ready = "Interface\\GossipFrame\\ActiveQuestIcon",
+}
 
-function UI.TurnInMarkup(size)
-    size = size or 14
-    if C_Texture and C_Texture.GetAtlasInfo and C_Texture.GetAtlasInfo(TURNIN_ATLAS) then
-        return CreateAtlasMarkup(TURNIN_ATLAS, size, size)
-    end
-    return "|cffffd200?|r"
+local function atlasExists(name)
+    return C_Texture and C_Texture.GetAtlasInfo and C_Texture.GetAtlasInfo(name) ~= nil
 end
 
--- Puts the "?" on a texture; returns false when the atlas is missing.
-function UI.SetTurnInTexture(tex)
-    if C_Texture and C_Texture.GetAtlasInfo and C_Texture.GetAtlasInfo(TURNIN_ATLAS) then
-        tex:SetAtlas(TURNIN_ATLAS)
-        return true
+-- "campaign" for quests in a chain, "recurring" for daily/weekly ones, else "plain".
+function UI.QuestKind(template, templateID)
+    if template.requires or (templateID and #ns.Model.GetFollowUps(templateID) > 0) then return "campaign" end
+    if template.repeatMode and template.repeatMode ~= "none" then return "recurring" end
+    return "plain"
+end
+
+function UI.SetQuestIcon(texture, kind, iconState)
+    local name = QUEST_ICONS[kind][iconState]
+    if not name:find("\\", 1, true) and atlasExists(name) then
+        texture:SetAtlas(name)
+        return
     end
-    return false
+    texture:SetTexture(name:find("\\", 1, true) and name or ICON_FILES[iconState])
+    texture:SetTexCoord(0, 1, 0, 1)
+end
+
+-- The same icon as text, to put in front of a title.
+function UI.QuestIconMarkup(kind, iconState, size)
+    local name = QUEST_ICONS[kind][iconState]
+    if not name:find("\\", 1, true) and atlasExists(name) then return CreateAtlasMarkup(name, size, size) end
+    return "|T" .. (name:find("\\", 1, true) and name or ICON_FILES[iconState]) .. ":" .. size .. "|t"
 end
 
 -- The template's own icon, else one for its first objective type.
