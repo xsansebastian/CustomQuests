@@ -18,6 +18,7 @@ Util.lua
 Compat\Common.lua
 Model.lua
 Serializer.lua
+Comm.lua
 Objectives.lua
 Lifecycle.lua
 Samples.lua

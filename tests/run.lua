@@ -24,11 +24,11 @@ ns.api = {
     GetPlayerLevel = function() return fake.level end,
 }
 
-for _, file in ipairs({ "Util.lua", "Model.lua", "Serializer.lua", "Objectives.lua", "Lifecycle.lua", "Samples.lua" }) do
+for _, file in ipairs({ "Util.lua", "Model.lua", "Serializer.lua", "Comm.lua", "Objectives.lua", "Lifecycle.lua", "Samples.lua" }) do
     assert(loadfile(file))("CustomQuests", ns)
 end
 local Util, Model, Serializer, Objectives, Lifecycle = ns.Util, ns.Model, ns.Serializer, ns.Objectives, ns.Lifecycle
-local Samples = ns.Samples
+local Samples, Comm = ns.Samples, ns.Comm
 
 local passed, failed = 0, 0
 local function test(name, fn)
@@ -799,6 +799,153 @@ test("Imports stop at the template cap", function()
     Model.MAX_TEMPLATES = old
     assert(ok, err)
     eq(#Model.ListTemplates(), 2)
+end)
+
+-- Comm: framing, fragments, throttle ---------------------------------------------------
+
+test("Comm frames split on ~ and keep the rest in the last field", function()
+    local f = Comm.Unpack(Comm.Pack("1", "D", "abc", "rest~with~tildes"), 4)
+    eq(#f, 4)
+    eq(f[3], "abc")
+    eq(f[4], "rest~with~tildes")
+    eq(#Comm.Unpack("only", 5), 1)
+end)
+
+test("Comm fragments reassemble out of order, ignoring duplicates", function()
+    local payload = ("0123456789"):rep(50) -- 500 bytes
+    local chunks = Comm.Fragment(payload, 240)
+    eq(#chunks, 3)
+    eq(#chunks[3], 20)
+    local a = assert(Comm.NewAssembly(3, 16384, 0))
+    eq(a:Add(3, chunks[3], 1), "added")
+    eq(a:Add(1, chunks[1], 2), "added")
+    eq(a:Add(1, "other", 3), "duplicate", "the first copy wins")
+    eq(a:IsComplete(), false)
+    eq(a:Result(), nil)
+    eq(table.concat(a:Missing(), ","), "2")
+    eq(a:Add(2, chunks[2], 4), "added")
+    eq(a:Result(), payload)
+    eq(#Comm.Fragment("", 240), 1, "an empty payload is still one fragment")
+end)
+
+test("Comm assembly refuses bad indexes, empty chunks and oversize payloads", function()
+    local a = assert(Comm.NewAssembly(3, 10, 0))
+    eq(select(2, a:Add(0, "x", 0)), "bad_index")
+    eq(select(2, a:Add(4, "x", 0)), "bad_index")
+    eq(select(2, a:Add(1.5, "x", 0)), "bad_index")
+    eq(select(2, a:Add("1", "x", 0)), "bad_index")
+    eq(select(2, a:Add(1, "", 0)), "empty")
+    eq(a:Add(1, "123456", 0), "added")
+    eq(select(2, a:Add(2, "12345", 0)), "too_big")
+    eq(Comm.NewAssembly(0, 10, 0), nil)
+    eq(Comm.NewAssembly(Comm.MAX_FRAGMENTS + 1, 10, 0), nil)
+    eq(Comm.NewAssembly(2.5, 10, 0), nil)
+end)
+
+test("Comm assembly times out from the last fragment", function()
+    local a = assert(Comm.NewAssembly(2, 100, 0))
+    a:Add(1, "x", 20)
+    eq(a:Expired(45, 30), false)
+    eq(a:Expired(51, 30), true)
+end)
+
+test("Comm chunk size leaves room for the header", function()
+    eq(Comm.ChunkSize("1~D~abcdef~1~2~p~"), 238)
+    eq(Comm.ChunkSize("x"), Comm.MAX_CHUNK)
+end)
+
+test("Token bucket: a burst of its capacity, then its rate", function()
+    local b = Comm.NewBucket(10, 1, 0)
+    local n = 0
+    for _ = 1, 20 do if b:Take(0) then n = n + 1 end end
+    eq(n, 10)
+    eq(b:Take(0.5), false)
+    eq(b:Take(1.01), true)
+    eq(b:Take(1.02), false)
+    b:Refill(100)
+    eq(b.tokens, 10, "never above capacity")
+    b:Drain(100)
+    eq(b:Take(100), false)
+end)
+
+-- A fake transport for the queue: records what it sends, answers from a script.
+local function fakeTransport(answers)
+    local log = {}
+    Comm.Reset()
+    Comm.transport = function(prefix, text, channel, target)
+        eq(prefix, Comm.PREFIX)
+        local answer = table.remove(answers, 1) or "ok"
+        if answer == "ok" then log[#log + 1] = { text = text, channel = channel, target = target } end
+        return answer
+    end
+    return log
+end
+
+test("Comm queue: group messages burst 10 then go 1 per second; whispers 5 per second", function()
+    local log = fakeTransport({})
+    Comm.inLockdown = function() return false end
+    for i = 1, 15 do Comm.Enqueue("g" .. i, "PARTY", nil, "t") end
+    for i = 1, 15 do Comm.Enqueue("w" .. i, "WHISPER", "Bob", "u") end
+    Comm.Pump(0)
+    eq(#log, 20, "10 of each lane at once")
+    eq(Comm.Pending("t"), 5)
+    Comm.Pump(1)
+    eq(Comm.Pending("t"), 4, "one more group message a second later")
+    eq(Comm.Pending("u"), 0, "five more whispers a second later")
+    eq(log[1].text, "g1")
+    eq(log[11].channel, "WHISPER")
+    eq(log[11].target, "Bob")
+end)
+
+test("Comm queue backs off on throttle and pauses on lockdown", function()
+    local log = fakeTransport({ "ok", "throttle" })
+    local locked, lockdowns = false, 0
+    Comm.inLockdown = function() return locked end
+    Comm.onLockdown = function() lockdowns = lockdowns + 1 end
+    for i = 1, 3 do Comm.Enqueue("m" .. i, "WHISPER", "Bob", "t") end
+    Comm.Pump(0)
+    eq(#log, 1)
+    Comm.Pump(1)
+    eq(#log, 1, "still backing off")
+    Comm.Pump(0 + Comm.BACKOFF + 1)
+    eq(#log, 3, "the throttled message is retried, nothing is lost")
+    -- Lockdown: nothing goes out until it lifts, then everything does.
+    locked = true
+    Comm.Enqueue("late", "WHISPER", "Bob", "t")
+    Comm.Pump(10)
+    eq(Comm.paused, true)
+    eq(lockdowns, 1)
+    Comm.Pump(11)
+    eq(lockdowns, 1, "told once")
+    eq(#log, 3)
+    locked = false
+    Comm.Pump(12)
+    eq(#log, 4)
+    eq(Comm.paused, false)
+    -- A lockdown answer from the server pauses the same way.
+    fakeTransport({ "lockdown" })
+    Comm.inLockdown = function() return false end
+    Comm.Enqueue("x", "PARTY", nil, "t")
+    Comm.Pump(20)
+    eq(Comm.paused, true)
+    eq(Comm.Pending(), 1, "kept for later")
+    Comm.Pump(21)
+    eq(Comm.Pending(), 0, "sent once the lockdown is over")
+end)
+
+test("Comm queue drops a whole transfer when a message fails", function()
+    fakeTransport({ "offline" })
+    Comm.inLockdown = function() return false end
+    local failed
+    Comm.onFail = function(tag, result) failed = tag .. ":" .. result end
+    for i = 1, 3 do Comm.Enqueue("m" .. i, "WHISPER", "Gone", "t1") end
+    Comm.Enqueue("other", "WHISPER", "Bob", "t2")
+    Comm.Pump(0)
+    eq(failed, "t1:offline")
+    eq(Comm.Pending("t1"), 0)
+    eq(Comm.Pending("t2"), 0, "the other transfer still went out")
+    eq(Comm.Cancel("t2"), 0)
+    Comm.onFail = function() end
 end)
 
 print(("%d passed, %d failed"):format(passed, failed))
