@@ -17,7 +17,7 @@ local function render()
         return
     end
     local template = quest.template
-    window.title:SetText(UI.InlineIcon(template, 22) .. "|cff" .. UI.QUEST_COLOR .. UI.QuestText(template.title) .. "|r")
+    window.title:SetText(UI.QuestIconMarkup(UI.QuestKind(template, quest.templateID), "ready", 22) .. " |cff" .. UI.QUEST_COLOR .. UI.QuestText(template.title) .. "|r")
 
     local parts = {}
     if template.completionText and template.completionText ~= "" then

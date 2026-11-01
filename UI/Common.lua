@@ -4,16 +4,6 @@ local L, Util = ns.L, ns.Util
 local UI = {}
 ns.UI = UI
 
-UI.TYPE_ICONS = {
-    item = "Interface\\Icons\\INV_Misc_Bag_10",
-    kill = "Interface\\Icons\\Ability_DualWield",
-    boss = "Interface\\Icons\\Achievement_Boss_Ragnaros",
-    zone = "Interface\\Icons\\INV_Misc_Map_01",
-    subzone = "Interface\\Icons\\INV_Misc_Map_01",
-    location = "Interface\\Icons\\Ability_Tracking",
-    level = "Interface\\Icons\\Achievement_Level_10",
-    manual = "Interface\\Icons\\INV_Misc_Note_01",
-}
 UI.APPROX_ICON = "|TInterface\\DialogFrame\\UI-Dialog-Icon-AlertNew:12|t"
 UI.QUEST_COLOR = "ffd200"
 
@@ -26,36 +16,51 @@ function UI.QuestText(text)
     return Util.ExpandTokens(Util.SafeText(text), ns.api.GetPlayerTokens())
 end
 
--- Yellow "?" shown on quests that are ready to be turned in.
-local TURNIN_ATLAS = "QuestTurnin"
+-- Quest icons: the game's own quest-giver icons, by kind of quest and its state.
+-- campaign = part of a chain, recurring = daily or weekly, plain = the rest.
+-- States: available (not accepted), progress (in the log), ready (to turn in).
+-- A name with a backslash is a texture file, otherwise an atlas.
+local QUEST_ICONS = {
+    campaign = { available = "CampaignAvailableQuestIcon", progress = "CampaignInProgressQuestIcon",
+                 ready = "CampaignActiveQuestIcon" },
+    recurring = { available = "Recurringavailablequesticon", progress = "RepeatableInProgressquesticon",
+                  ready = "Recurringactivequesticon" },
+    plain = { available = "Interface\\GossipFrame\\AvailableQuestIcon", progress = "SideInProgressquesticon",
+              ready = "QuestTurnin" },
+}
+-- Shown when an atlas doesn't exist on the client.
+local ICON_FILES = {
+    available = "Interface\\GossipFrame\\AvailableQuestIcon",
+    progress = "Interface\\GossipFrame\\ActiveQuestIcon",
+    ready = "Interface\\GossipFrame\\ActiveQuestIcon",
+}
 
-function UI.TurnInMarkup(size)
-    size = size or 14
-    if C_Texture and C_Texture.GetAtlasInfo and C_Texture.GetAtlasInfo(TURNIN_ATLAS) then
-        return CreateAtlasMarkup(TURNIN_ATLAS, size, size)
+local function atlasExists(name)
+    return C_Texture and C_Texture.GetAtlasInfo and C_Texture.GetAtlasInfo(name) ~= nil
+end
+
+-- "campaign" for quests in a chain, "recurring" for daily/weekly ones, else "plain".
+function UI.QuestKind(template, templateID)
+    if template.requires or (templateID and #ns.Model.GetFollowUps(templateID) > 0) then return "campaign" end
+    if template.repeatMode and template.repeatMode ~= "none" then return "recurring" end
+    return "plain"
+end
+
+function UI.SetQuestIcon(texture, kind, iconState)
+    local name = QUEST_ICONS[kind][iconState]
+    if not name:find("\\", 1, true) and atlasExists(name) then
+        texture:SetAtlas(name)
+        return
     end
-    return "|cffffd200?|r"
+    texture:SetTexture(name:find("\\", 1, true) and name or ICON_FILES[iconState])
+    texture:SetTexCoord(0, 1, 0, 1)
 end
 
--- Puts the "?" on a texture; returns false when the atlas is missing.
-function UI.SetTurnInTexture(tex)
-    if C_Texture and C_Texture.GetAtlasInfo and C_Texture.GetAtlasInfo(TURNIN_ATLAS) then
-        tex:SetAtlas(TURNIN_ATLAS)
-        return true
-    end
-    return false
-end
-
--- The template's own icon, else one for its first objective type.
-function UI.TemplateIcon(template)
-    local icon = ns.Model.IconTexture(template.icon)
-    if icon then return icon end
-    local obj = template.stages[1] and template.stages[1].objectives[1]
-    return UI.TYPE_ICONS[obj and obj.type or "manual"]
-end
-
-function UI.InlineIcon(template, size)
-    return "|T" .. UI.TemplateIcon(template) .. ":" .. (size or 16) .. "|t "
+-- The same icon as text, to put in front of a title.
+function UI.QuestIconMarkup(kind, iconState, size)
+    local name = QUEST_ICONS[kind][iconState]
+    if not name:find("\\", 1, true) and atlasExists(name) then return CreateAtlasMarkup(name, size, size) end
+    return "|T" .. (name:find("\\", 1, true) and name or ICON_FILES[iconState]) .. ":" .. size .. "|t"
 end
 
 -- Lines describing level range and chain links of a template.
@@ -212,7 +217,7 @@ function UI.CreateDropdown(parent, width, getItems, getValue, onSelect)
         local items = getItems()
         if #items > 15 then root:SetScrollMode(15 * 20) end
         for _, item in ipairs(items) do
-            local text = item.icon and ("|T" .. item.icon .. ":14|t " .. item.text) or item.text
+            local text = item.icon and (item.icon .. " " .. item.text) or item.text
             root:CreateRadio(text,
                 function(value) return (getValue() or false) == value end,
                 function(value) onSelect(value) end,

@@ -201,7 +201,7 @@ end
 
 ## v0.4 — iconos, niveles y cadenas
 
-- **Icono por plantilla** (`icon`): nombre de archivo de `Interface/Icons` o fileID. Sin icono se usa el del primer objetivo. Se ve en la lista, el detalle y el rastreador.
+- **Icono por plantilla** (`icon`): nombre de archivo de `Interface/Icons` o fileID. Sin icono se usa el del primer objetivo. Se ve en la lista, el detalle y el rastreador. **Retirado después:** ahora el icono sale del tipo de misión (campaña, repetible o suelta) y de su estado, con los iconos del juego.
 - **Nivel mínimo/máximo** (`minLevel`, `maxLevel`): solo se comprueban al aceptar (como en WoW). Una misión ya aceptada no se cancela por subir de nivel.
 - **Etapas vs. cadenas**: las etapas son pasos dentro de una misma misión (una entrada, una recompensa, una línea de historial). Una cadena son misiones distintas enlazadas con `requires` (la plantilla previa): la siguiente queda bloqueada hasta que **este personaje** completa la anterior, y entonces se acepta sola si cumple el nivel.
 - Sin bucles (`ERR_CHAIN_CYCLE`). Borrar un eslabón reconecta el siguiente con el anterior.

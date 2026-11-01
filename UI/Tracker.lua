@@ -8,6 +8,22 @@ ns.Tracker = Tracker
 
 local WIDTH = 260
 local LINE_HEIGHT = 12
+local PAD = 8 -- left margin inside the tracker
+
+-- Banner header like the game's "All Objectives": dark banner with gold lines,
+-- and a red square button that folds the tracker. Drawn with the game's own
+-- atlases; when one is missing the plain header is used instead.
+local HEADER_ATLAS = "ui-questtracker-primary-objective-header"
+local MINIMIZE_ATLAS = { collapse = "ui-questtrackerbutton-collapse-all", expand = "ui-questtrackerbutton-expand-all" }
+local MINIMIZE_HIGHLIGHT = "ui-questtrackerbutton-red-highlight"
+local BANNER_HEIGHT, PLAIN_HEIGHT = 32, 18
+
+local function hasAtlas(name)
+    return C_Texture and C_Texture.GetAtlasInfo and C_Texture.GetAtlasInfo(name) ~= nil
+end
+
+local fancyHeader -- true when every atlas above exists
+local headerHeight = PLAIN_HEIGHT
 
 local frame, header
 local lines, plusButtons, titleButtons = {}, {}, {}
@@ -16,10 +32,10 @@ local savePosition
 local function getLine(i)
     local fs = lines[i]
     if not fs then
-        fs = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        fs = UI.Style.Text(frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall"))
         fs:SetJustifyH("LEFT")
         fs:SetWordWrap(true)
-        fs:SetWidth(WIDTH - 30)
+        fs:SetWidth(WIDTH - 30 - PAD)
         lines[i] = fs
     end
     fs:Show()
@@ -40,10 +56,10 @@ local function getTitle(i)
     local b = titleButtons[i]
     if not b then
         b = CreateFrame("Button", nil, frame)
-        b.text = b:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        b.text = UI.Style.Text(b:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall"))
         b.text:SetPoint("TOPLEFT")
         b.text:SetJustifyH("LEFT")
-        b.text:SetWidth(WIDTH - 30)
+        b.text:SetWidth(WIDTH - 30 - PAD)
         b:SetWidth(WIDTH - 30)
         b:RegisterForDrag("LeftButton")
         b:RegisterForClicks("RightButtonUp")
@@ -56,12 +72,13 @@ local function getTitle(i)
         end)
         -- Yellow "?" on the right of a ready quest: opens the turn-in window.
         b.turnin = CreateFrame("Button", nil, b)
-        b.turnin:SetSize(16, 16)
+        b.turnin:SetSize(14, 14)
         b.turnin:SetPoint("TOPLEFT", b, "TOPLEFT", 0, 0)
         b.turnin.tex = b.turnin:CreateTexture(nil, "ARTWORK")
         b.turnin.tex:SetAllPoints()
-        b.turnin:SetScript("OnClick", function() ns.TurnIn.Open(b.questID) end)
+        b.turnin:SetScript("OnClick", function(self) if self.ready then ns.TurnIn.Open(b.questID) end end)
         b.turnin:SetScript("OnEnter", function(self)
+            if not self.ready then return end
             GameTooltip:SetOwner(self, "ANCHOR_LEFT")
             GameTooltip:SetText(L["TURNIN_TITLE"])
             GameTooltip:AddLine(L["TURNIN_HELP"], 1, 1, 1, true)
@@ -108,9 +125,25 @@ local function create()
     frame:SetMovable(true)
     frame:SetClampedToScreen(true)
 
+    -- Background and border live in a separate frame behind the tracker, so the
+    -- tracker's own text (regions of `frame`) is drawn on top of it.
+    local bg = CreateFrame("Frame", nil, UIParent, "BackdropTemplate")
+    bg:SetFrameStrata(frame:GetFrameStrata())
+    bg:SetFrameLevel(math.max(frame:GetFrameLevel() - 1, 0))
+    bg:SetPoint("TOPLEFT", frame, "TOPLEFT", -6, 6)
+    bg:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", 6, -6)
+    UI.Style.Box(bg)
+    frame:HookScript("OnShow", function() bg:Show() end)
+    frame:HookScript("OnHide", function() bg:Hide() end)
+    bg:SetShown(frame:IsShown())
+
     header = CreateFrame("Button", nil, frame)
     header:SetPoint("TOPLEFT")
-    header:SetSize(WIDTH, 18)
+    fancyHeader = hasAtlas(HEADER_ATLAS) and hasAtlas(MINIMIZE_ATLAS.collapse) and hasAtlas(MINIMIZE_ATLAS.expand)
+        and hasAtlas(MINIMIZE_HIGHLIGHT) and hasAtlas(MINIMIZE_ATLAS.collapse .. "-pressed")
+        and hasAtlas(MINIMIZE_ATLAS.expand .. "-pressed")
+    headerHeight = fancyHeader and BANNER_HEIGHT or PLAIN_HEIGHT
+    header:SetSize(WIDTH, headerHeight)
     header:RegisterForDrag("LeftButton")
     header:RegisterForClicks("LeftButtonUp", "RightButtonUp")
     header:SetScript("OnDragStart", startMove)
@@ -131,7 +164,32 @@ local function create()
     end)
     header:SetScript("OnLeave", GameTooltip_Hide)
     header.text = header:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    header.text:SetPoint("LEFT")
+    header.text:SetPoint("LEFT", PAD, 0)
+    header.text:SetWidth(WIDTH - PAD - 28) -- keeps clear of the fold button
+    header.text:SetWordWrap(false)
+    header.text:SetJustifyH("LEFT")
+    if fancyHeader then
+        header.background = header:CreateTexture(nil, "BACKGROUND")
+        header.background:SetAtlas(HEADER_ATLAS, true)
+        header.background:SetPoint("CENTER")
+        -- 14 pt with a shadow, as in the game's tracker.
+        local path = header.text:GetFont()
+        header.text:SetFont(path, 14, "")
+        header.text:SetShadowOffset(1, -1)
+        header.text:SetShadowColor(0, 0, 0, 1)
+
+        local minimize = CreateFrame("Button", nil, header)
+        minimize:SetSize(18, 19)
+        minimize:SetPoint("RIGHT", -1, 0)
+        minimize:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+        minimize:SetHighlightAtlas(MINIMIZE_HIGHLIGHT, "ADD")
+        minimize:SetScript("OnClick", function()
+            Model.char.trackerCollapsed = not Model.char.trackerCollapsed
+            Tracker.Refresh()
+        end)
+        header.minimize = minimize
+    end
+    UI.Style.Text(header.text)
 
     local pos = Model.char.trackerPos
     if pos then
@@ -154,15 +212,24 @@ function Tracker.Refresh()
 
     local tracked = {}
     for _, entry in ipairs(Lifecycle.List()) do
-        if entry.quest.state == "active" and Model.char.tracked[entry.id] then tracked[#tracked + 1] = entry end
+        if entry.quest.state == "active" and Model.char.tracked[entry.id] and Lifecycle.IsUnlocked(entry.quest) then
+            tracked[#tracked + 1] = entry
+        end
     end
     if #tracked == 0 then frame:Hide() return end
     frame:Show()
 
     local collapsed = Model.char.trackerCollapsed
-    header.text:SetText(("CustomQuests (%d)%s"):format(#tracked, collapsed and " +" or ""))
+    if fancyHeader then
+        header.text:SetText(("CustomQuests (%d)"):format(#tracked))
+        local atlas = collapsed and MINIMIZE_ATLAS.expand or MINIMIZE_ATLAS.collapse
+        header.minimize:SetNormalAtlas(atlas)
+        header.minimize:SetPushedAtlas(atlas .. "-pressed")
+    else
+        header.text:SetText(("CustomQuests (%d)%s"):format(#tracked, collapsed and " +" or ""))
+    end
 
-    local y, n, nPlus, nTitle = -20, 0, 0, 0
+    local y, n, nPlus, nTitle = -(headerHeight + 2), 0, 0, 0
     if not collapsed then
         for _, entry in ipairs(tracked) do
             local quest = entry.quest
@@ -171,17 +238,19 @@ function Tracker.Refresh()
             local folded = Model.char.questCollapsed[entry.id]
             local stages = #quest.template.stages
             title.questID = entry.id
-            local ready = quest.ready and UI.SetTurnInTexture(title.turnin.tex)
-            title.turnin:SetShown(ready or false)
-            -- The "?" sits in front of the title, so the text makes room for it.
+            -- The quest's icon sits in front of the title (a turn-in button once it is ready).
+            UI.SetQuestIcon(title.turnin.tex, UI.QuestKind(quest.template, quest.templateID),
+                quest.ready and "ready" or "progress")
+            title.turnin.ready = quest.ready
+            title.turnin:Show()
             title.text:ClearAllPoints()
-            title.text:SetPoint("TOPLEFT", ready and 18 or 0, 0)
-            title.text:SetWidth(WIDTH - 30 - (ready and 18 or 0))
-            title.text:SetText(("%s|cff%s%s|r%s%s"):format(UI.InlineIcon(quest.template, 12), UI.QUEST_COLOR,
+            title.text:SetPoint("TOPLEFT", 18, 0)
+            title.text:SetWidth(WIDTH - 30 - PAD - 18)
+            title.text:SetText(("|cff%s%s|r%s%s"):format(UI.QUEST_COLOR,
                 UI.QuestText(quest.template.title),
                 stages > 1 and (" (" .. quest.stage .. "/" .. stages .. ")") or "", folded and " [+]" or ""))
             title:ClearAllPoints()
-            title:SetPoint("TOPLEFT", frame, "TOPLEFT", 0, y)
+            title:SetPoint("TOPLEFT", frame, "TOPLEFT", PAD, y)
             title:SetHeight(title.text:GetStringHeight())
             y = y - title.text:GetStringHeight() - 1
 
@@ -190,7 +259,7 @@ function Tracker.Refresh()
                 local line = getLine(n)
                 local text, done = UI.ObjectiveLine(quest, i, obj)
                 line:SetText("- " .. text)
-                line:SetPoint("TOPLEFT", frame, "TOPLEFT", 8, y)
+                line:SetPoint("TOPLEFT", frame, "TOPLEFT", 8 + PAD, y)
                 if obj.type == "manual" and not done then
                     nPlus = nPlus + 1
                     local b = getPlus(nPlus)
@@ -214,5 +283,6 @@ function Tracker.Init()
     if frame then return end
     create()
     Util.On("QUESTS_CHANGED", Tracker.Refresh)
+    Util.On("STYLE_CHANGED", Tracker.Refresh)
     Tracker.Refresh()
 end

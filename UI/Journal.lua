@@ -8,7 +8,7 @@ ns.Journal = Journal
 
 local WIDTH, HEIGHT = 660, 460
 local LIST_WIDTH = 230
-local ROW_HEIGHT = 34
+local ROW_HEIGHT = 38
 local DETAIL_WIDTH = WIDTH - LIST_WIDTH - 90
 
 local window, list, detail
@@ -35,19 +35,28 @@ local function getRow(i)
     row.selectedTex = row:CreateTexture(nil, "BACKGROUND")
     row.selectedTex:SetAllPoints()
     row.selectedTex:SetColorTexture(1, 0.82, 0, 0.15)
+    -- Fold button for quests that have follow-ups in a chain.
+    row.toggle = CreateFrame("Button", nil, row)
+    row.toggle:SetSize(14, 14)
+    row.toggle:SetScript("OnClick", function(self)
+        local id = self:GetParent().id
+        local collapsed = Model.account.chainCollapsed
+        collapsed[id] = not collapsed[id] or nil
+        -- A fold that hides the selected quest selects the one that stays.
+        if collapsed[id] then state.selected.templates = id end
+        Journal.Refresh()
+    end)
     row.icon = row:CreateTexture(nil, "ARTWORK")
-    row.icon:SetSize(24, 24)
+    row.icon:SetSize(20, 20)
     row.icon:SetPoint("LEFT", 4, 0)
-    row.mark = row:CreateTexture(nil, "OVERLAY")
-    row.mark:SetSize(18, 18)
-    row.mark:SetPoint("LEFT", 2, 0)
     row.title = UI.CreateLabel(row, "", "GameFontNormal")
-    row.title:SetPoint("TOPLEFT", row.icon, "TOPRIGHT", 6, 0)
-    row.title:SetWidth(LIST_WIDTH - 44)
+    -- Text is anchored to the row, not the icon, so the two lines keep their distance.
+    row.title:SetPoint("TOPLEFT", row, "TOPLEFT", 32, -5)
+    row.title:SetWidth(LIST_WIDTH - 40)
     row.title:SetWordWrap(false)
     row.sub = UI.CreateLabel(row, "", "GameFontHighlightSmall")
-    row.sub:SetPoint("BOTTOMLEFT", row.icon, "BOTTOMRIGHT", 6, 0)
-    row.sub:SetWidth(LIST_WIDTH - 44)
+    row.sub:SetPoint("BOTTOMLEFT", row, "BOTTOMLEFT", 32, 5)
+    row.sub:SetWidth(LIST_WIDTH - 40)
     row.sub:SetWordWrap(false)
     row:SetScript("OnClick", function(self)
         state.selected[state.tab] = self.id
@@ -57,7 +66,6 @@ local function getRow(i)
     return row
 end
 
-local firstObjectiveIcon = UI.TemplateIcon
 
 local function repeatLabel(mode)
     return L["REPEAT_" .. mode:upper()]
@@ -87,18 +95,25 @@ local function buildEntries()
                 end
                 sub = L["PROGRESS_SUMMARY"]:format(q.stage, #q.template.stages, done, #stage.objectives)
             end
-            entries[#entries + 1] = { id = e.id, icon = firstObjectiveIcon(q.template),
-                title = UI.QuestText(q.template.title), sub = sub, ready = ready }
+            entries[#entries + 1] = { id = e.id, kind = UI.QuestKind(q.template, q.templateID),
+                iconState = ready and "ready" or (q.state == "done" and "available" or "progress"),
+                title = UI.QuestText(q.template.title), sub = sub }
         end
     elseif state.tab == "templates" then
-        for _, e in ipairs(Model.ListTemplates()) do
-            local t = e.template
+        -- Chains are a tree: the first quest is the chain's title, the rest hang below it.
+        for _, node in ipairs(Model.TemplateTree(Model.account.chainCollapsed)) do
+            local t = Model.GetTemplate(node.id)
             local sub = kindLabel(t.kind) .. " · " .. repeatLabel(t.repeatMode)
-            local ok, err = Lifecycle.CanAccept(e.id)
+            if node.hasChildren and node.depth == 0 then sub = L["CHAIN_COUNT"]:format(node.count) .. " · " .. sub end
+            local ok, err = Lifecycle.CanAccept(node.id)
             if not ok and (err == "ERR_LOCKED" or err == "ERR_LEVEL_LOW" or err == "ERR_LEVEL_HIGH") then
                 sub = "|cff808080" .. sub .. " · " .. L["LOCKED_SHORT"] .. "|r"
+            elseif err == "ERR_CHAIN_AUTO" then
+                sub = "|cff808080" .. sub .. " · " .. L["CHAIN_AUTO_SHORT"] .. "|r"
             end
-            entries[#entries + 1] = { id = e.id, icon = firstObjectiveIcon(t), title = UI.QuestText(t.title), sub = sub }
+            entries[#entries + 1] = { id = node.id, kind = UI.QuestKind(t, node.id), iconState = "available",
+                title = UI.QuestText(t.title), sub = sub, depth = node.depth, hasChildren = node.hasChildren,
+                collapsed = node.collapsed }
         end
     else
         for i, row in ipairs(Lifecycle.GetHistorySummary()) do
@@ -114,12 +129,31 @@ local function refreshList(entries)
     for i, entry in ipairs(entries) do
         local row = getRow(i)
         row.id = entry.id
-        row.icon:SetTexture(entry.icon)
+        if entry.kind then
+            UI.SetQuestIcon(row.icon, entry.kind, entry.iconState)
+        else
+            row.icon:SetTexture(entry.icon)
+            row.icon:SetTexCoord(0, 1, 0, 1)
+        end
+        -- Indent by depth; the fold button sits in front of quests with follow-ups.
+        local indent = (entry.depth or 0) * 14
+        row.toggle:ClearAllPoints()
+        row.toggle:SetPoint("LEFT", row, "LEFT", 2 + indent, 0)
+        row.toggle:SetShown(entry.hasChildren or false)
+        if entry.hasChildren then
+            row.toggle:SetNormalTexture(entry.collapsed and "Interface\\Buttons\\UI-PlusButton-Up"
+                or "Interface\\Buttons\\UI-MinusButton-Up")
+        end
+        row.icon:ClearAllPoints()
+        row.icon:SetPoint("LEFT", row, "LEFT", 18 + indent, 0)
+        row.title:ClearAllPoints()
+        row.title:SetPoint("TOPLEFT", row, "TOPLEFT", 44 + indent, -5)
+        row.title:SetWidth(LIST_WIDTH - 50 - indent)
+        row.sub:ClearAllPoints()
+        row.sub:SetPoint("BOTTOMLEFT", row, "BOTTOMLEFT", 44 + indent, 5)
+        row.sub:SetWidth(LIST_WIDTH - 50 - indent)
         row.title:SetText(entry.title)
         row.sub:SetText(entry.sub)
-        local marked = entry.ready and UI.SetTurnInTexture(row.mark)
-        row.mark:SetShown(marked or false)
-        row.icon:SetPoint("LEFT", marked and 22 or 4, 0)
         row.selectedTex:SetShown(entry.id == state.selected[state.tab])
     end
     list.content:SetHeight(math.max(1, #entries * ROW_HEIGHT))
@@ -187,6 +221,7 @@ local function setButtons(specs)
         b:ClearAllPoints()
         if prev then b:SetPoint("LEFT", prev, "RIGHT", 6, 0) else b:SetPoint("BOTTOMLEFT", detail.frame, "BOTTOMLEFT", 0, 0) end
         b:SetText(spec[1])
+        b:SetEnabled(spec[3] ~= false)
         b:SetScript("OnClick", spec[2])
         b:Show()
         prev = b
@@ -204,6 +239,19 @@ local function layoutDetail(title, meta, body)
     return y
 end
 
+-- The quest's icon in front of the detail title (a turn-in button when ready);
+-- the title and the line under it move right to make room.
+local function showTitleIcon(kind, iconState, questID, ready)
+    UI.SetQuestIcon(detail.turnin.tex, kind, iconState)
+    detail.turnin.questID, detail.turnin.ready = questID, ready
+    detail.turnin:Show()
+    detail.title:ClearAllPoints()
+    detail.title:SetPoint("TOPLEFT", 28, 0)
+    detail.title:SetWidth(DETAIL_WIDTH - 28)
+    detail.meta:ClearAllPoints()
+    detail.meta:SetPoint("TOPLEFT", detail.title, "BOTTOMLEFT", -28, -4)
+end
+
 local function showActive(id)
     local quest = Lifecycle.Get(id)
     local template = quest.template
@@ -212,16 +260,11 @@ local function showActive(id)
     if quest.state == "done" then
         meta = meta .. "\n" .. L["RESETS_IN"]:format(UI.FormatDuration((quest.resetAt or 0) - ns.api.Now()))
     end
-    -- A ready quest shows the "?" in front of the title, which moves right to make room.
-    local ready = quest.state == "active" and quest.ready and UI.SetTurnInTexture(detail.turnin.tex)
-    if ready then
-        detail.title:ClearAllPoints()
-        detail.title:SetPoint("TOPLEFT", 30, 0)
-        detail.title:SetWidth(DETAIL_WIDTH - 30)
-        detail.meta:ClearAllPoints()
-        detail.meta:SetPoint("TOPLEFT", detail.title, "BOTTOMLEFT", -30, -4)
-    end
-    local y = layoutDetail(UI.InlineIcon(template, 20) .. "|cff" .. UI.QUEST_COLOR .. UI.QuestText(template.title) .. "|r",
+    local active = quest.state == "active"
+    local ready = active and quest.ready
+    showTitleIcon(UI.QuestKind(template, quest.templateID),
+        ready and "ready" or (active and "progress" or "available"), id, ready)
+    local y = layoutDetail("|cff" .. UI.QUEST_COLOR .. UI.QuestText(template.title) .. "|r",
         meta, bodyText(template, quest.stage))
 
     if quest.state == "active" then
@@ -238,9 +281,6 @@ local function showActive(id)
         end
     end
     detail.content:SetHeight(-y)
-
-    detail.turnin:SetShown(ready or false)
-    detail.turnin.questID = id
 
     local tracked = Model.char.tracked[id]
     local buttons = {
@@ -274,10 +314,12 @@ local function showTemplate(id)
             lines[#lines + 1] = "  - " .. UI.ObjectiveLabel(obj) .. (goal > 1 and (" x" .. goal) or "")
         end
     end
-    local y = layoutDetail(UI.InlineIcon(template, 20) .. "|cff" .. UI.QUEST_COLOR .. UI.QuestText(template.title) .. "|r",
+    showTitleIcon(UI.QuestKind(template, id), "available", id, false)
+    local y = layoutDetail("|cff" .. UI.QUEST_COLOR .. UI.QuestText(template.title) .. "|r",
         meta, table.concat(lines, "\n"))
     detail.content:SetHeight(-y)
 
+    local _, acceptErr = Lifecycle.CanAccept(id)
     setButtons({
         { L["ACCEPT"], function()
             local _, err, arg = Lifecycle.Accept(id)
@@ -286,7 +328,7 @@ local function showTemplate(id)
             state.tab = "active"
             state.selected.active = Lifecycle.FindByTemplate(id)
             Journal.Refresh()
-        end },
+        end, acceptErr ~= "ERR_CHAIN_AUTO" },
         { L["EDIT"], function() ns.Editor.Open(id) end },
         { L["EXPORT"], function() ns.Dialogs.ShowExport(id) end },
         { DELETE, function()
@@ -396,13 +438,14 @@ local function create()
     detail.title:SetWidth(DETAIL_WIDTH)
     -- Yellow "?" next to the title of a quest that is ready: opens the turn-in window.
     detail.turnin = CreateFrame("Button", nil, detail.content)
-    detail.turnin:SetSize(26, 26)
+    detail.turnin:SetSize(22, 22)
     detail.turnin:SetPoint("TOPLEFT", 0, 0)
     detail.turnin.tex = detail.turnin:CreateTexture(nil, "ARTWORK")
     detail.turnin.tex:SetAllPoints()
     detail.turnin:SetHighlightTexture("Interface\\Buttons\\ButtonHilight-Square", "ADD")
-    detail.turnin:SetScript("OnClick", function(self) ns.TurnIn.Open(self.questID) end)
+    detail.turnin:SetScript("OnClick", function(self) if self.ready then ns.TurnIn.Open(self.questID) end end)
     detail.turnin:SetScript("OnEnter", function(self)
+        if not self.ready then return end
         GameTooltip:SetOwner(self, "ANCHOR_LEFT")
         GameTooltip:SetText(L["TURNIN_TITLE"])
         GameTooltip:AddLine(L["TURNIN_HELP"], 1, 1, 1, true)

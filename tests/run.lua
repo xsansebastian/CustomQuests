@@ -332,12 +332,27 @@ test("All locales define the same keys as enUS", function()
     end
 end)
 
-test("Icons accept file names and IDs only", function()
-    eq(Model.ValidIcon("INV_Misc_Book_09"), "INV_Misc_Book_09")
-    eq(Model.ValidIcon(134400), 134400)
-    eq(Model.ValidIcon("..\\evil"), nil)
-    eq(Model.ValidIcon(1.5), nil)
-    eq(Model.IconTexture("INV_Misc_Book_09"), "Interface\\Icons\\INV_Misc_Book_09")
+test("Appearance options fill defaults and reject bad values", function()
+    local defaults = Model.CleanOptions(nil)
+    eq(defaults.font, "default")
+    eq(defaults.scale, 100)
+    eq(defaults.tracker.bgAlpha, 0)
+    eq(defaults.tracker.border, "none")
+    local clean = Model.CleanOptions({
+        font = 42, scale = 9999,
+        tracker = { bgAlpha = 5, border = "default", bg = { 2, "x", -1 }, borderColor = { 0.5, 0.25, 0.75 } },
+    })
+    eq(clean.font, "default", "non-string font")
+    eq(clean.scale, Model.SCALE_MAX, "scale clamped")
+    eq(clean.tracker.bgAlpha, 1, "alpha clamped")
+    eq(clean.tracker.border, "none", "unknown border")
+    eq(clean.tracker.bg[1], 1)
+    eq(clean.tracker.bg[2], 0, "bad channel falls back")
+    eq(clean.tracker.bg[3], 0)
+    eq(clean.tracker.borderColor[3], 0.75)
+    eq(Model.CleanOptions({ font = "Fira Sans" }).font, "Fira Sans", "SharedMedia names are kept")
+    eq(Model.CleanOptions("junk").scale, 100, "non-table")
+    eq(Model.account.options.scale, 100, "InitDB stores clean options")
 end)
 
 test("Level range blocks accepting outside it", function()
@@ -381,6 +396,64 @@ test("Chains can't loop", function()
     eq(select(2, Model.SaveTemplate(first, ids[1], fake.now)), "ERR_CHAIN_CYCLE")
 end)
 
+test("Only the first quest of a chain can be accepted by hand", function()
+    local ids = chainOf(3)
+    eq(select(2, Lifecycle.CanAccept(ids[1])), nil, "the first one is free")
+    local q1 = assert(Lifecycle.Accept(ids[1]))
+    Objectives.AdjustManual(Lifecycle.Get(q1), 1, 1)
+    settle()
+    turnIn(q1)
+    local q2 = Lifecycle.FindByTemplate(ids[2])
+    assert(q2, "the second one started by itself")
+    -- Even with its predecessor completed, nobody accepts the third (or a repeat of the second) by hand.
+    eq(select(2, Lifecycle.CanAccept(ids[3])), "ERR_LOCKED", "still locked")
+    Lifecycle.Abandon(q2)
+    eq(select(2, Lifecycle.Accept(ids[2])), "ERR_CHAIN_AUTO", "unlocked but automatic")
+    eq(select(3, Lifecycle.Accept(ids[2])), "Part 1", "names the quest it follows")
+end)
+
+test("A chained quest stays hidden until its predecessor is turned in", function()
+    local ids = chainOf(2)
+    -- Accepted while free, then made part of a chain nobody has completed.
+    local free = assert(Model.SaveTemplate(template({ { type = "manual", text = "x" } }, { title = "Free" }), nil, fake.now))
+    local qid = assert(Lifecycle.Accept(free))
+    eq(Lifecycle.IsUnlocked(Lifecycle.Get(qid)), true, "no predecessor")
+    Model.account.templates[free].requires = ids[1]
+    eq(Lifecycle.IsUnlocked(Lifecycle.Get(qid)), false, "predecessor never completed")
+    -- Completing the predecessor unlocks it ...
+    local q1 = assert(Lifecycle.Accept(ids[1]))
+    Objectives.AdjustManual(Lifecycle.Get(q1), 1, 1)
+    settle()
+    turnIn(q1)
+    eq(Lifecycle.IsUnlocked(Lifecycle.Get(qid)), true, "predecessor turned in")
+    -- ... and doing the predecessor again locks it until that run is turned in.
+    local again = assert(Lifecycle.Accept(ids[1]))
+    eq(Lifecycle.IsUnlocked(Lifecycle.Get(qid)), false, "predecessor active again")
+    Objectives.AdjustManual(Lifecycle.Get(again), 1, 1)
+    settle()
+    turnIn(again)
+    eq(Lifecycle.IsUnlocked(Lifecycle.Get(qid)), true, "turned in again")
+end)
+
+test("The template tree nests chains under their first quest and honours folds", function()
+    local ids = chainOf(3) -- Part 1 > Part 2 > Part 3
+    local solo = assert(Model.SaveTemplate(template({ { type = "manual", text = "x" } }, { title = "Alone" }), nil, fake.now))
+    local function shape(rows)
+        local out = {}
+        for _, r in ipairs(rows) do out[#out + 1] = r.depth .. (r.hasChildren and "+" or "") end
+        return table.concat(out, ",")
+    end
+    local rows = Model.TemplateTree({})
+    eq(shape(rows), "0,0+,1+,2", "Alone, then the chain")
+    eq(rows[1].id, solo)
+    eq(rows[2].count, 3, "the chain root counts the whole chain")
+    eq(rows[3].count, 2)
+    eq(shape(Model.TemplateTree({ [ids[1]] = true })), "0,0+", "folded root hides the rest")
+    eq(Model.TemplateTree({ [ids[1]] = true })[2].collapsed, true)
+    eq(shape(Model.TemplateTree({ [ids[2]] = true })), "0,0+,1+", "folding a middle quest hides what follows it")
+    eq(shape(Model.TemplateTree({ [solo] = true })), "0,0+,1+,2", "folding a leaf does nothing")
+end)
+
 test("Exporting a chain carries every link and import rebuilds them", function()
     local ids = chainOf(3)
     local text = Serializer.ExportChain(ids[2])
@@ -408,28 +481,6 @@ test("Deleting a middle link reconnects the chain", function()
     local ids = chainOf(3)
     Model.DeleteTemplate(ids[2])
     eq(Model.GetTemplate(ids[3]).requires, ids[1])
-end)
-
-test("NormalizeIcon converts provider textures to the stored form", function()
-    eq(Model.NormalizeIcon(136243), 136243)
-    eq(Model.NormalizeIcon("136243"), 136243)
-    eq(Model.NormalizeIcon("INTERFACE\\ICONS\\INV_MISC_QUESTIONMARK"), "INV_MISC_QUESTIONMARK")
-    eq(Model.NormalizeIcon("Interface/Icons/INV_Misc_Book_09"), "INV_Misc_Book_09")
-    eq(Model.NormalizeIcon("bad name!"), nil)
-end)
-
-test("Recent icons keep the newest first, without duplicates, up to the limit", function()
-    for i = 1, 12 do Model.PushRecentIcon(1000 + i) end
-    Model.PushRecentIcon(1005)
-    local recent = Model.account.recentIcons
-    eq(#recent, Model.MAX_RECENT_ICONS)
-    eq(recent[1], 1005)
-    eq(recent[2], 1012)
-    local seen = {}
-    for _, icon in ipairs(recent) do
-        assert(not seen[icon], "duplicate " .. icon)
-        seen[icon] = true
-    end
 end)
 
 print(("%d passed, %d failed"):format(passed, failed))

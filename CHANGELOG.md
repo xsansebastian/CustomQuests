@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- Only the first quest of a chain can be accepted by hand. The others start on their own when the previous one is turned in; their Accept button is off and the list says so.
+- A quest that belongs to a chain stays out of the tracker until the one before it has been turned in.
+- Templates list: chains are now a tree. The first quest of a chain is its title, the rest hang below it (folding with the +/- button), and follow-ups of follow-ups nest further down.
+- Quests now use the game's own quest icons instead of custom ones: campaign for chains, recurring for daily and weekly, and the plain side-quest icon for the rest, each with its in-progress and turn-in versions. The template icon picker is gone.
+- New tracker appearance settings in Options > AddOns > CustomQuests (also `/cq options`): font (including SharedMedia fonts if installed) and text size, background color and opacity, border style and color, with a live preview and a reset button. The tracker also has a little more margin on the left, and a header banner like the game's own objective tracker, with a red button to fold it.
+
 ## 0.6.0
 
 - New minimap button: left-click opens the journal, right-click shows/hides the tracker, Shift+drag moves it. `/cq minimap` hides or shows it.

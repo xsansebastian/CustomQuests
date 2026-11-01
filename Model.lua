@@ -88,39 +88,6 @@ function Model.ValidateObjective(obj)
     return clean
 end
 
--- Icons are an Interface/Icons file name ("INV_Misc_Book_09") or a file ID.
-function Model.ValidIcon(icon)
-    if type(icon) == "number" and icon == math.floor(icon) and icon > 0 and icon < 1e9 then return icon end
-    if type(icon) == "string" and #icon <= 80 and icon:match("^[%w_%-]+$") then return icon end
-end
-
--- Converts what the icon provider returns (file ID or full texture path)
--- into the stored form: a file ID or a bare file name.
-function Model.NormalizeIcon(texture)
-    if type(texture) == "number" then return Model.ValidIcon(texture) end
-    if type(texture) ~= "string" then return nil end
-    return Model.ValidIcon(tonumber(texture) or texture:match("([^/\\]+)$"))
-end
-
-Model.MAX_RECENT_ICONS = 10
-
--- Most recent first, no duplicates.
-function Model.PushRecentIcon(icon)
-    icon = Model.ValidIcon(icon)
-    if not icon then return end
-    local list = Model.account.recentIcons
-    for i = #list, 1, -1 do
-        if list[i] == icon then table.remove(list, i) end
-    end
-    table.insert(list, 1, icon)
-    while #list > Model.MAX_RECENT_ICONS do table.remove(list) end
-end
-
-function Model.IconTexture(icon)
-    if type(icon) == "number" then return icon end
-    if type(icon) == "string" then return "Interface\\Icons\\" .. icon end
-end
-
 function Model.ValidateTemplate(tpl)
     if type(tpl) ~= "table" then return nil, "ERR_BAD_TEMPLATE" end
     local title = cleanString(tpl.title, Model.MAX_TITLE)
@@ -134,7 +101,6 @@ function Model.ValidateTemplate(tpl)
         description = cleanString(tpl.description, Model.MAX_TEXT),
         rewardText = cleanString(tpl.rewardText, Model.MAX_TEXT),
         completionText = cleanString(tpl.completionText, Model.MAX_TEXT),
-        icon = Model.ValidIcon(tpl.icon),
         requires = type(tpl.requires) == "string" and #tpl.requires <= 64
             and tpl.requires:match("^[%w%-]+$") and tpl.requires or nil,
         stages = {},
@@ -169,6 +135,57 @@ function Model.ValidateTemplate(tpl)
     return clean
 end
 
+-- Appearance options (tracker only) --------------------------------------------
+
+-- Fonts the game ships; SharedMedia fonts are also accepted (any name up to 128 letters).
+Model.FONT_KEYS = { "default", "ARIALN", "SKURRI", "MORPHEUS" }
+Model.BORDER_STYLES = { "none", "thin", "tooltip" }
+Model.SCALE_MIN, Model.SCALE_MAX = 70, 160
+
+-- Defaults reproduce the look the tracker had before the options existed.
+local OPTION_DEFAULTS = {
+    font = "default",
+    scale = 100,
+    tracker = { bg = { 0, 0, 0 }, bgAlpha = 0, border = "none", borderColor = { 1, 0.82, 0 } },
+}
+
+local function validNumber(v)
+    return type(v) == "number" and v == v and v ~= math.huge and v ~= -math.huge
+end
+
+local function cleanColor(color, default)
+    local out = {}
+    for i = 1, 3 do
+        local v = type(color) == "table" and color[i]
+        out[i] = validNumber(v) and clamp(v, 0, 1) or default[i]
+    end
+    return out
+end
+
+function Model.DefaultOptions()
+    return Util.DeepCopy(OPTION_DEFAULTS)
+end
+
+-- Returns a complete, valid options table from whatever was saved (missing
+-- parts filled in, anything unknown or out of range replaced by the default).
+function Model.CleanOptions(saved)
+    saved = type(saved) == "table" and saved or {}
+    local d = OPTION_DEFAULTS.tracker
+    local t = type(saved.tracker) == "table" and saved.tracker or {}
+    local font = type(saved.font) == "string" and #saved.font > 0 and #saved.font <= 128 and saved.font
+    return {
+        font = font or OPTION_DEFAULTS.font,
+        scale = validNumber(saved.scale) and clamp(math.floor(saved.scale + 0.5), Model.SCALE_MIN, Model.SCALE_MAX)
+            or OPTION_DEFAULTS.scale,
+        tracker = {
+            bg = cleanColor(t.bg, d.bg),
+            bgAlpha = validNumber(t.bgAlpha) and clamp(t.bgAlpha, 0, 1) or d.bgAlpha,
+            border = contains(Model.BORDER_STYLES, t.border) and t.border or d.border,
+            borderColor = cleanColor(t.borderColor, d.borderColor),
+        },
+    }
+end
+
 -- SavedVariables ------------------------------------------------------------
 
 local idCounter = 0
@@ -184,8 +201,10 @@ function Model.InitDB(accountDB, charDB)
     accountDB.schema = accountDB.schema or Model.SCHEMA
     accountDB.templates = accountDB.templates or {}
     accountDB.history = accountDB.history or {}
-    accountDB.recentIcons = accountDB.recentIcons or {}
+    accountDB.recentIcons = nil -- the icon picker is gone
+    accountDB.chainCollapsed = type(accountDB.chainCollapsed) == "table" and accountDB.chainCollapsed or {}
     accountDB.minimap = accountDB.minimap or { angle = 225, hidden = false }
+    accountDB.options = Model.CleanOptions(accountDB.options)
     charDB.schema = charDB.schema or Model.SCHEMA
     charDB.active = charDB.active or {}
     charDB.tracked = charDB.tracked or {}
@@ -285,6 +304,60 @@ function Model.ListTemplates()
     for id, tpl in pairs(Model.account.templates) do list[#list + 1] = { id = id, template = tpl } end
     table.sort(list, function(a, b) return a.template.title:lower() < b.template.title:lower() end)
     return list
+end
+
+-- The templates as a tree for the Templates list: standalone quests and chain
+-- roots at depth 0, each follow-up one level below the quest it follows.
+-- collapsed[id] hides the follow-ups of that quest. Rows: { id, depth,
+-- hasChildren, collapsed, count } where count is the size of the whole subtree.
+function Model.TemplateTree(collapsed)
+    collapsed = collapsed or {}
+    local entries = Model.ListTemplates()
+    local order = {}
+    for i, entry in ipairs(entries) do order[entry.id] = i end
+
+    local function children(id)
+        local list = Model.GetFollowUps(id)
+        table.sort(list, function(a, b) return (order[a] or 0) < (order[b] or 0) end)
+        return list
+    end
+
+    local reached = {}
+    local function size(id, depth)
+        if reached[id] or depth > 30 then return 0 end
+        reached[id] = true
+        local total = 1
+        for _, child in ipairs(children(id)) do total = total + size(child, depth + 1) end
+        return total
+    end
+
+    local rows, shown = {}, {}
+    local function walk(id, depth)
+        if shown[id] or depth > 30 then return end
+        shown[id] = true
+        local kids = children(id)
+        local row = { id = id, depth = depth, hasChildren = #kids > 0, collapsed = collapsed[id] and #kids > 0 or false }
+        rows[#rows + 1] = row
+        if row.collapsed then return end
+        for _, child in ipairs(kids) do walk(child, depth + 1) end
+    end
+
+    local roots = {}
+    for _, entry in ipairs(entries) do
+        local requires = entry.template.requires
+        if not (requires and Model.account.templates[requires]) then roots[#roots + 1] = entry.id end
+    end
+    -- A broken loop has no root: its members still show up, as roots.
+    for _, id in ipairs(roots) do size(id, 0) end
+    for _, entry in ipairs(entries) do
+        if not reached[entry.id] then roots[#roots + 1] = entry.id size(entry.id, 0) end
+    end
+    for _, id in ipairs(roots) do walk(id, 0) end
+    for _, row in ipairs(rows) do
+        reached = {}
+        row.count = size(row.id, 0)
+    end
+    return rows
 end
 
 function Model.NewEmptyTemplate()
