@@ -64,6 +64,8 @@ CustomQuestsDB = {
     },
   },
   history = { { templateID = "...", title = "...", completedAt = 1700000000, char = "Name-Realm" } },
+  sections = { { id = "s-...", name = "Lost Isles" } },   -- orden = orden en pantalla; plantilla.section = id
+  sectionCollapsed = { ["s-..."] = true },                -- plegado en Plantillas (cuenta)
 }
 
 -- Personaje (SavedVariablesPerCharacter: CustomQuestsCharDB)
@@ -75,6 +77,7 @@ CustomQuestsCharDB = {
   },
   tracked = { ["q-..."] = true },
   trackerPos = nil,
+  sectionCollapsed = { log = {}, tracker = {} },          -- plegado por vista, por personaje
 }
 ```
 
@@ -206,3 +209,12 @@ end
 - **Etapas vs. cadenas**: las etapas son pasos dentro de una misma misión (una entrada, una recompensa, una línea de historial). Una cadena son misiones distintas enlazadas con `requires` (la plantilla previa): la siguiente queda bloqueada hasta que **este personaje** completa la anterior, y entonces se acepta sola si cumple el nivel.
 - Sin bucles (`ERR_CHAIN_CYCLE`). Borrar un eslabón reconecta el siguiente con el anterior.
 - **Exportar** una plantilla que forma parte de una cadena exporta la cadena entera (`{ chain = { { template, requires = índice } } }`); al importar, los enlaces solo pueden apuntar a entradas anteriores.
+
+## Secciones de misiones
+
+- Una **sección** (`CustomQuestsDB.sections`, máx. 50, nombre ≤ 40) agrupa plantillas que el jugador decide que están relacionadas. Cada plantilla lleva `section = id` (o nada), pero **una cadena se mueve entera**: `Model.SetSection` arrastra todas las misiones enlazadas (y el editor, al cambiar la sección de una misión, mueve su cadena). Datos antiguos con una cadena repartida se siguen mostrando: la parte que queda sin su anterior abre su propio árbol.
+- Sin secciones todo se ve como antes. Con alguna, van en el orden de la lista y las misiones sin sección al final bajo «Otras misiones». En Plantillas las secciones vacías conservan su cabecera; en Activas y en el rastreador se ocultan.
+- Borrar una sección no borra misiones: quedan sin sección. Un `section` que no existe se lee como «sin sección».
+- **Exportar/importar**: la sección viaja por **nombre** (`sectionName` en una plantilla suelta, `section` en cada entrada de `chain`); al importar se reutiliza la sección del mismo nombre o se crea. Se puede exportar una sección entera (`Serializer.ExportSection`, ≤ 50 misiones).
+- Las misiones activas se agrupan según la plantilla *viva* (no la copia), así que mover una plantilla mueve también su misión en curso. El plegado de Activas y del rastreador es por personaje y separado.
+- Esquema: solo se añaden campos (sin subir `schema`). Una versión anterior del addon perdería `section` al guardar la plantilla.

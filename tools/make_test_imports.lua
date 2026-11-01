@@ -31,10 +31,13 @@ end
 local manual = function(text, count) return { type = "manual", text = text, count = count or 1 } end
 
 local sets = {}
+-- build() returns the id of a template (its whole chain is exported) or
+-- { section = id } to export a whole section.
 local function add(name, description, build)
     newDB()
-    local id = build()
-    local text = assert(Serializer.ExportChain(id))
+    local result = build()
+    local text = assert(type(result) == "table" and Serializer.ExportSection(result.section)
+        or Serializer.ExportChain(result))
     -- It must import back, with every template of the chain.
     local entries = assert(Serializer.Import(text))
     sets[#sets + 1] = { name = name, description = description, text = text, count = #entries }
@@ -99,6 +102,39 @@ add("07-solo-veteranos-y-textos", "Suelta de nivel 100+ (bloqueada por debajo). 
         minLevel = 100,
         description = "[color=ff4040]Rojo[/color], [color=20ff20]verde[/color], [color=40a0ff]azul[/color]. {name} el {class} ({race}).",
     }))
+end)
+
+-- 6. Sections -----------------------------------------------------------------------------------------------------
+local function section(name) return assert(Model.CreateSection(name, 1000)) end
+
+add("08-cadena-en-seccion", "Cadena de 2 misiones dentro de la sección '[Test] Isla perdida': al importar se crea la sección y las dos quedan en ella (una cadena se mueve entera).", function()
+    local a = save(quest("[Test] Isla A: llegada", { manual("Desembarca", 1) }))
+    save(quest("[Test] Isla B: exploración", { manual("Explora la costa", 2) }, { requires = a }))
+    Model.SetSection({ a }, section("[Test] Isla perdida"))
+    return a
+end)
+
+add("09-seccion-completa", "Sección '[Test] Rutina' exportada entera: una diaria, una semanal, una cadena de 2 y una suelta. Prueba el export de sección, las cabeceras en Activas y en el rastreador, y que 'Otras misiones' no sale si todas tienen sección.", function()
+    local daily = save(quest("[Test] Rutina: diaria", { manual("Saluda", 1) }, { repeatMode = "daily" }))
+    local weekly = save(quest("[Test] Rutina: semanal", { manual("Recado", 2) }, { repeatMode = "weekly" }))
+    local a = save(quest("[Test] Rutina: cadena 1", { manual("Primero", 1) }))
+    save(quest("[Test] Rutina: cadena 2", { manual("Segundo", 1) }, { requires = a }))
+    local solo = save(quest("[Test] Rutina: suelta", { manual("Un paso", 1) }))
+    local id = section("[Test] Rutina")
+    Model.SetSection({ daily, weekly, a, solo }, id)
+    return { section = id }
+end)
+
+add("10-seccion-ya-existente", "Una misión en la sección '[Test] Rutina' (mismo nombre que la 09): importada después de la 09 debe entrar en la sección que ya existe, sin duplicarla. Importada sola, la crea.", function()
+    local id = save(quest("[Test] Rutina: extra", { manual("Otro paso", 1) }))
+    Model.SetSection({ id }, section("[Test] Rutina"))
+    return id
+end)
+
+add("11-nombre-de-seccion-raro", "Sección con nombre largo y caracteres especiales (se recorta a 40 y se quitan las barras |): comprueba que la cabecera se ve bien y no rompe el formato.", function()
+    local id = save(quest("[Test] Sección rara", { manual("Prueba", 1) }))
+    Model.SetSection({ id }, section("[Test] Un nombre de sección muy largo para ver cómo se recorta"))
+    return id
 end)
 
 -- Output -----------------------------------------------------------------------------------------------------------

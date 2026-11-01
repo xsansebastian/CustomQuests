@@ -11,6 +11,7 @@ local LIST_DEFAULT, MIN_LIST = 230, 170
 local listPref = LIST_DEFAULT -- the width the player chose for the tree panel
 local listWidth = LIST_DEFAULT -- listPref, kept inside what the window allows
 local ROW_HEIGHT = 38
+local HEADER_HEIGHT = 24 -- section header bar
 local MIN_SIZE, MAX_SIZE = { 560, 380 }, { 1100, 900 }
 local detailWidth = WIDTH - listWidth - 90 -- follows the window width
 local META_GAP = 10 -- space between the detail title and the line under it
@@ -35,7 +36,6 @@ local function getRow(i)
     if row then row:Show() return row end
     row = CreateFrame("Button", nil, list.content)
     row:SetSize(listWidth - 4, ROW_HEIGHT)
-    row:SetPoint("TOPLEFT", 0, -(i - 1) * ROW_HEIGHT)
     row:SetHighlightTexture("Interface\\QuestFrame\\UI-QuestTitleHighlight", "ADD")
     row.selectedTex = row:CreateTexture(nil, "BACKGROUND")
     row.selectedTex:SetAllPoints()
@@ -79,6 +79,33 @@ local function getRow(i)
     return row
 end
 
+-- Section headers: their own pool, since they are shorter than the quest rows.
+local headers = {}
+
+local function sectionStore()
+    return state.tab == "templates" and Model.account.sectionCollapsed or Model.char.sectionCollapsed.log
+end
+
+local function getHeader(i)
+    local header = headers[i]
+    if header then header:Show() return header end
+    header = UI.CreateSectionHeader(list.content, HEADER_HEIGHT)
+    header.onClick = function(mouse)
+        if mouse == "RightButton" and state.tab == "templates" and header.sectionID ~= Model.NO_SECTION then
+            Journal.SectionMenu(header, header.sectionID)
+            return
+        end
+        local store = sectionStore()
+        store[header.sectionID] = not store[header.sectionID] or nil
+        Journal.Refresh()
+    end
+    headers[i] = header
+    return header
+end
+
+local function sectionName(header)
+    return header.name and UI.QuestText(header.name) or L["SECTION_NONE"]
+end
 
 local function repeatLabel(mode)
     return L["REPEAT_" .. mode:upper()]
@@ -108,25 +135,38 @@ local function buildEntries()
                 end
                 sub = L["PROGRESS_SUMMARY"]:format(q.stage, #q.template.stages, done, #stage.objectives)
             end
+            -- The live template decides the section; the copy is only a fallback.
+            local live = Model.GetTemplate(q.templateID) or q.template
             entries[#entries + 1] = { id = e.id, kind = UI.QuestKind(q.template, q.templateID),
                 iconState = ready and "ready" or (q.state == "done" and "available" or "progress"),
-                title = UI.QuestText(q.template.title), sub = sub }
+                title = UI.QuestText(q.template.title), sub = sub, section = Model.SectionOf(live) }
         end
+        local grouped = {}
+        for _, g in ipairs(Model.GroupBySection(entries, function(entry) return entry.section end,
+                Model.char.sectionCollapsed.log)) do
+            grouped[#grouped + 1] = g.item or { header = g.header, collapsed = g.collapsed, count = g.count }
+        end
+        entries = grouped
     elseif state.tab == "templates" then
         -- Chains are a tree: the first quest is the chain's title, the rest hang below it.
-        for _, node in ipairs(Model.TemplateTree(Model.account.chainCollapsed)) do
-            local t = Model.GetTemplate(node.id)
-            local sub = kindLabel(t.kind) .. " · " .. repeatLabel(t.repeatMode)
-            if node.hasChildren and node.depth == 0 then sub = L["CHAIN_COUNT"]:format(node.count) .. " · " .. sub end
-            local ok, err = Lifecycle.CanAccept(node.id)
-            if not ok and (err == "ERR_LOCKED" or err == "ERR_LEVEL_LOW" or err == "ERR_LEVEL_HIGH") then
-                sub = "|cff808080" .. sub .. " · " .. L["LOCKED_SHORT"] .. "|r"
-            elseif err == "ERR_CHAIN_AUTO" then
-                sub = "|cff808080" .. sub .. " · " .. L["CHAIN_AUTO_SHORT"] .. "|r"
+        for _, g in ipairs(Model.SectionedTree(Model.account.sectionCollapsed, Model.account.chainCollapsed)) do
+            if g.header then
+                entries[#entries + 1] = { header = g.header, collapsed = g.collapsed, count = g.count }
+            else
+                local node = g.row
+                local t = Model.GetTemplate(node.id)
+                local sub = kindLabel(t.kind) .. " · " .. repeatLabel(t.repeatMode)
+                if node.hasChildren and node.depth == 0 then sub = L["CHAIN_COUNT"]:format(node.count) .. " · " .. sub end
+                local ok, err = Lifecycle.CanAccept(node.id)
+                if not ok and (err == "ERR_LOCKED" or err == "ERR_LEVEL_LOW" or err == "ERR_LEVEL_HIGH") then
+                    sub = "|cff808080" .. sub .. " · " .. L["LOCKED_SHORT"] .. "|r"
+                elseif err == "ERR_CHAIN_AUTO" then
+                    sub = "|cff808080" .. sub .. " · " .. L["CHAIN_AUTO_SHORT"] .. "|r"
+                end
+                entries[#entries + 1] = { id = node.id, kind = UI.QuestKind(t, node.id), iconState = "available",
+                    title = UI.QuestText(t.title), sub = sub, depth = node.depth, hasChildren = node.hasChildren,
+                    collapsed = node.collapsed }
             end
-            entries[#entries + 1] = { id = node.id, kind = UI.QuestKind(t, node.id), iconState = "available",
-                title = UI.QuestText(t.title), sub = sub, depth = node.depth, hasChildren = node.hasChildren,
-                collapsed = node.collapsed }
         end
     else
         for i, row in ipairs(Lifecycle.GetHistorySummary()) do
@@ -139,43 +179,105 @@ end
 
 local function refreshList(entries)
     for _, row in ipairs(rows) do row:Hide() end
-    for i, entry in ipairs(entries) do
-        local row = getRow(i)
-        row.id = entry.id
-        if entry.kind then
-            UI.SetQuestIcon(row.icon, entry.kind, entry.iconState)
+    for _, header in ipairs(headers) do header:Hide() end
+    local nRow, nHeader, y = 0, 0, 0
+    for _, entry in ipairs(entries) do
+        if entry.header then
+            nHeader = nHeader + 1
+            local header = getHeader(nHeader)
+            header.sectionID = entry.header.id
+            header:ClearAllPoints()
+            header:SetPoint("TOPLEFT", list.content, "TOPLEFT", 0, -y)
+            header:SetPoint("TOPRIGHT", list.content, "TOPRIGHT", 0, -y)
+            header:SetSection(("%s (%d)"):format(sectionName(entry.header), entry.count), entry.collapsed)
+            y = y + HEADER_HEIGHT + 2
         else
-            row.icon:SetTexture(entry.icon)
-            row.icon:SetTexCoord(0, 1, 0, 1)
+            nRow = nRow + 1
+            local row = getRow(nRow)
+            row:ClearAllPoints()
+            row:SetPoint("TOPLEFT", list.content, "TOPLEFT", 0, -y)
+            y = y + ROW_HEIGHT
+            row.id = entry.id
+            if entry.kind then
+                UI.SetQuestIcon(row.icon, entry.kind, entry.iconState)
+            else
+                row.icon:SetTexture(entry.icon)
+                row.icon:SetTexCoord(0, 1, 0, 1)
+            end
+            -- Indent by depth; the fold button sits in front of quests with follow-ups.
+            -- On Templates the checkbox comes first and pushes everything right.
+            local picking = state.tab == "templates" and state.editing
+            row.check:SetShown(picking)
+            row.check:SetChecked(picking and state.checked[entry.id] or false)
+            local indent = (entry.depth or 0) * 14 + (picking and CHECK_WIDTH or 0)
+            row.toggle:ClearAllPoints()
+            row.toggle:SetPoint("LEFT", row, "LEFT", 2 + indent, 0)
+            row.toggle:SetShown(entry.hasChildren or false)
+            if entry.hasChildren then
+                row.toggle:SetNormalTexture(entry.collapsed and "Interface\\Buttons\\UI-PlusButton-Up"
+                    or "Interface\\Buttons\\UI-MinusButton-Up")
+            end
+            row.icon:ClearAllPoints()
+            row.icon:SetPoint("LEFT", row, "LEFT", 18 + indent, 0)
+            row.title:ClearAllPoints()
+            row.title:SetPoint("TOPLEFT", row, "TOPLEFT", 44 + indent, -5)
+            row.title:SetWidth(listWidth - 50 - indent)
+            row.sub:ClearAllPoints()
+            row.sub:SetPoint("BOTTOMLEFT", row, "BOTTOMLEFT", 44 + indent, 5)
+            row.sub:SetWidth(listWidth - 50 - indent)
+            row.title:SetText(entry.title)
+            row.sub:SetText(entry.sub)
+            row.selectedTex:SetShown(entry.id == state.selected[state.tab])
         end
-        -- Indent by depth; the fold button sits in front of quests with follow-ups.
-        -- On Templates the checkbox comes first and pushes everything right.
-        local picking = state.tab == "templates" and state.editing
-        row.check:SetShown(picking)
-        row.check:SetChecked(picking and state.checked[entry.id] or false)
-        local indent = (entry.depth or 0) * 14 + (picking and CHECK_WIDTH or 0)
-        row.toggle:ClearAllPoints()
-        row.toggle:SetPoint("LEFT", row, "LEFT", 2 + indent, 0)
-        row.toggle:SetShown(entry.hasChildren or false)
-        if entry.hasChildren then
-            row.toggle:SetNormalTexture(entry.collapsed and "Interface\\Buttons\\UI-PlusButton-Up"
-                or "Interface\\Buttons\\UI-MinusButton-Up")
-        end
-        row.icon:ClearAllPoints()
-        row.icon:SetPoint("LEFT", row, "LEFT", 18 + indent, 0)
-        row.title:ClearAllPoints()
-        row.title:SetPoint("TOPLEFT", row, "TOPLEFT", 44 + indent, -5)
-        row.title:SetWidth(listWidth - 50 - indent)
-        row.sub:ClearAllPoints()
-        row.sub:SetPoint("BOTTOMLEFT", row, "BOTTOMLEFT", 44 + indent, 5)
-        row.sub:SetWidth(listWidth - 50 - indent)
-        row.title:SetText(entry.title)
-        row.sub:SetText(entry.sub)
-        row.selectedTex:SetShown(entry.id == state.selected[state.tab])
     end
-    list.content:SetHeight(math.max(1, #entries * ROW_HEIGHT))
+    list.content:SetHeight(math.max(1, y))
     list.empty:SetShown(#entries == 0)
     list.empty:SetText(L["EMPTY_" .. state.tab:upper()])
+end
+
+-- Moves the ticked templates into a section (nil: out of any section).
+local function moveChecked(sectionID)
+    local ids = {}
+    for id in pairs(state.checked) do ids[#ids + 1] = id end
+    table.sort(ids)
+    if #ids > 0 then
+        Model.SetSection(ids, sectionID)
+        if sectionID then Model.account.sectionCollapsed[sectionID] = nil end
+        state.checked = {}
+        ns.RefreshAll(true)
+    end
+    Journal.Refresh()
+end
+
+-- The "Move to" menu under the list while editing.
+local function buildMoveMenu(_, root)
+    root:CreateButton(L["SECTION_NO_SECTION"], function() moveChecked(nil) end)
+    for _, section in ipairs(Model.ListSections()) do
+        root:CreateButton(UI.QuestText(section.name), function() moveChecked(section.id) end)
+    end
+    root:CreateDivider()
+    root:CreateButton(L["SECTION_NEW"], function()
+        ns.Dialogs.NewSection(function(id) moveChecked(id) end)
+    end)
+end
+
+-- Right-click on a section header in Templates.
+function Journal.SectionMenu(owner, sectionID)
+    local section = Model.SectionByID(sectionID)
+    if not (section and MenuUtil and MenuUtil.CreateContextMenu) then return end
+    local function changed()
+        ns.RefreshAll(true)
+        Journal.Refresh()
+    end
+    MenuUtil.CreateContextMenu(owner, function(_, root)
+        root:CreateTitle(UI.QuestText(section.name))
+        root:CreateButton(L["SECTION_RENAME"], function() ns.Dialogs.RenameSection(sectionID, changed) end)
+        root:CreateButton(L["SECTION_MOVE_UP"], function() if Model.MoveSection(sectionID, -1) then changed() end end)
+        root:CreateButton(L["SECTION_MOVE_DOWN"], function() if Model.MoveSection(sectionID, 1) then changed() end end)
+        root:CreateButton(L["SECTION_EXPORT"], function() ns.Dialogs.ShowSectionExport(sectionID) end)
+        root:CreateDivider()
+        root:CreateButton(L["SECTION_DELETE"], function() ns.Dialogs.ConfirmDeleteSection(sectionID, changed) end)
+    end)
 end
 
 -- Detail -----------------------------------------------------------------------
@@ -378,10 +480,15 @@ local function refreshDetail(entries)
     detail.meta:ClearAllPoints()
     detail.meta:SetPoint("TOPLEFT", detail.title, "BOTTOMLEFT", 0, -META_GAP)
     local selected = state.selected[state.tab]
-    local exists = false
-    for _, e in ipairs(entries) do if e.id == selected then exists = true end end
+    local exists, first = false, nil
+    for _, e in ipairs(entries) do
+        if not e.header then
+            first = first or e.id
+            if e.id == selected then exists = true end
+        end
+    end
     if not exists then
-        selected = entries[1] and entries[1].id
+        selected = first
         state.selected[state.tab] = selected
     end
     detail.frame:SetShown(selected ~= nil)
@@ -434,6 +541,10 @@ local function create()
         end)
     end)
     importButton:SetPoint("RIGHT", newButton, "LEFT", -4, 0)
+    local sectionButton = UI.CreateButton(window, L["SECTION_ADD"], 110, function()
+        ns.Dialogs.NewSection(function() Journal.Refresh() end)
+    end)
+    sectionButton:SetPoint("RIGHT", importButton, "LEFT", -4, 0)
     -- Under the tree: "Edit list" turns on the checkboxes; then "Delete (N)" removes
     -- the ticked templates and "Done" turns them off again.
     local editButton = UI.CreateButton(window, L["LIST_EDIT"], listWidth - 10, function()
@@ -452,7 +563,14 @@ local function create()
     end)
     deleteButton:SetPoint("BOTTOMLEFT", 14, 12)
     tabButtons.delete = deleteButton
-    tabButtons.templateActions = { newButton, importButton, editButton }
+    -- While editing, a menu above them moves the ticked templates between sections.
+    local moveButton = CreateFrame("DropdownButton", nil, window, "WowStyle1DropdownTemplate")
+    moveButton:SetWidth(listWidth - 10)
+    moveButton:SetPoint("BOTTOMLEFT", window, "BOTTOMLEFT", 14, 38)
+    moveButton:SetDefaultText(L["MOVE_TO"])
+    moveButton:SetupMenu(buildMoveMenu)
+    tabButtons.move = moveButton
+    tabButtons.templateActions = { newButton, importButton, sectionButton, editButton }
 
     list = {}
     list.scroll, list.content = createScroll(window, listWidth - 4)
@@ -534,6 +652,7 @@ local function create()
         tabButtons.edit:ClearAllPoints()
         tabButtons.edit:SetPoint("BOTTOMRIGHT", window, "BOTTOMLEFT", listWidth + 4, 12)
         tabButtons.delete:SetWidth(listWidth - 114)
+        tabButtons.move:SetWidth(listWidth - 10)
         detailWidth = windowWidth - listWidth - 90
         detail.content:SetWidth(detailWidth)
         detail.meta:SetWidth(detailWidth)
@@ -596,12 +715,13 @@ function Journal.Refresh()
     -- While editing, Delete takes the left of the row and Edit shrinks to "Done".
     local editing = onTemplates and state.editing
     tabButtons.delete:SetShown(editing)
+    tabButtons.move:SetShown(editing)
     tabButtons.edit:SetText(editing and DONE or L["LIST_EDIT"])
     tabButtons.edit:SetWidth(editing and 100 or listWidth - 10)
     -- On Templates the tree stops higher, to leave room for the buttons under it.
     list.scroll:ClearAllPoints()
     list.scroll:SetPoint("TOPLEFT", window, "TOPLEFT", 12, -60)
-    list.scroll:SetPoint("BOTTOMLEFT", window, "BOTTOMLEFT", 12, onTemplates and 46 or 16)
+    list.scroll:SetPoint("BOTTOMLEFT", window, "BOTTOMLEFT", 12, onTemplates and (editing and 70 or 46) or 16)
     window.TitleText:SetText("CustomQuests · " .. L["TAB_" .. state.tab:upper()])
     local entries = buildEntries()
     refreshList(entries)
@@ -611,7 +731,9 @@ end
 function Journal.ShowTemplate(id)
     state.tab = "templates"
     state.selected.templates = id
-    -- Unfold the chain so the quest is visible in the tree.
+    -- Unfold its section and the chain so the quest is visible in the tree.
+    local section = Model.SectionOf(Model.GetTemplate(id))
+    if section then Model.account.sectionCollapsed[section] = nil end
     local step, ancestor = 0, Model.GetTemplate(id)
     while ancestor and ancestor.requires and step < 30 do
         Model.account.chainCollapsed[ancestor.requires] = nil

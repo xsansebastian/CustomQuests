@@ -22,3 +22,14 @@ Run with `/console scriptErrors 1`. Record client, build (`/dump select(4, GetBu
 | 14 | Import garbage / truncated text | Red error message, no Lua error | |
 | 15 | `/reload` and full client restart | Templates, active quests, history, tracker position kept | |
 | 16 | Enter text with `|cff...` in title | Shown literally, not coloured | |
+| 17 | Templates → Add section → name it (Enter and the Accept button) | Empty section header appears with (0); an empty name shows an error | |
+| 18 | Templates → Edit list → tick quests → Move to section → pick one / No section / New section | Ticked quests move; moving a chain quest moves the whole chain | |
+| 19 | Right-click a section header in Templates | Menu: rename, move up, move down, export, delete; delete keeps the quests | |
+| 20 | Editor → Section field → save | Quest (and its chain) land in that section; "New section..." works from there | |
+| 21 | Fold sections in Templates, Active and the tracker, then `/reload` | Folds kept; Active/tracker folds are per character and independent | |
+| 22 | Accept quests from two sections and some without section | Active and tracker group them, "Other quests" last; empty sections hidden | |
+| 23 | Export a section, import it on another character / after deleting it | Section recreated by name; importing again reuses it (no duplicate) | |
+| 24 | Import `tests/imports/08` to `11` (see README there) | Sections created as described; no Lua errors | |
+| 25 | Narrowest Journal (drag the corner), edit-list mode | "Add section" button and the "Move to section" menu fit; headers stretch with the list | |
+| 26 | Hold Shift over the tracker, drag the corner grip | Tracker gets wider/narrower (200-520) and taller/shorter; banner and section bars stretch, text rewraps; size kept after `/reload` | |
+| 27 | Make the tracker shorter than its quests; mouse wheel over it; right-click the grip | Quests scroll; right-click returns to the fitting height; folding the tracker shrinks it to the banner | |

@@ -265,6 +265,17 @@ local function labeled(parent, text, widget, x, y)
     return widget
 end
 
+-- Sections the quest can be put in, plus a way to make a new one.
+local NEW_SECTION = "new-section"
+local function sectionItems()
+    local items = { { value = false, text = L["SECTION_NO_SECTION"] } }
+    for _, section in ipairs(Model.ListSections()) do
+        items[#items + 1] = { value = section.id, text = UI.QuestText(section.name) }
+    end
+    items[#items + 1] = { value = NEW_SECTION, text = L["SECTION_NEW"] }
+    return items
+end
+
 -- Templates this one may follow, laid out like the Templates tree: each
 -- follow-up indented under the quest it follows. Leaves out this quest and
 -- everything after it, since those would loop.
@@ -341,6 +352,20 @@ local function createGeneralPanel(panel)
     end
     fields.minLevel = levelField("minLevel", L["F_MIN_LEVEL"], 160)
     fields.maxLevel = levelField("maxLevel", L["F_MAX_LEVEL"], 230)
+
+    fields.section = labeled(panel, L["F_SECTION"], UI.CreateDropdown(panel, 150, sectionItems,
+        function() return Model.SectionOf(draft) or false end,
+        function(value)
+            if value == NEW_SECTION then
+                ns.Dialogs.NewSection(function(id)
+                    draft.section = id
+                    fields.section:Refresh()
+                end)
+                fields.section:Refresh()
+                return
+            end
+            draft.section = value or nil
+        end), 300, -56)
 
     -- Chain: the quest that must be completed before this one.
     fields.requires = labeled(panel, L["F_REQUIRES"], UI.CreateDropdown(panel, 360, chainItems,
@@ -496,6 +521,7 @@ local function loadDraft()
     fields.kind:Refresh()
     fields.repeatMode:Refresh()
     fields.requires:Refresh()
+    fields.section:Refresh()
     refreshChain()
     fields.minLevel:SetText(draft.minLevel and tostring(draft.minLevel) or "")
     fields.maxLevel:SetText(draft.maxLevel and tostring(draft.maxLevel) or "")
@@ -511,7 +537,10 @@ end
 local ERROR_TABS = { ERR_NEED_TITLE = "general", ERR_LEVEL_RANGE = "general", ERR_CHAIN_CYCLE = "general" }
 
 local function save()
+    local before = draftID and Model.SectionOf(Model.GetTemplate(draftID))
     local id, err, stage, objective = Model.SaveTemplate(draft, draftID, ns.api.Now())
+    -- A chain keeps together: changing this quest's section moves the whole chain.
+    if id and Model.SectionOf(draft) ~= before then Model.SetSection({ id }, Model.SectionOf(draft)) end
     if not id then
         local where = stage and L["ERR_WHERE"]:format(stage, objective or 0) or ""
         errorText:SetText("|cffff4040" .. (L[err] or err) .. where .. "|r")
@@ -626,6 +655,7 @@ function Editor.Open(templateID, prerequisiteID)
     if prerequisite then
         draft.requires = prerequisiteID
         draft.kind = prerequisite.kind
+        draft.section = Model.SectionOf(prerequisite)
     end
     stageIndex = 1
     loadDraft()
