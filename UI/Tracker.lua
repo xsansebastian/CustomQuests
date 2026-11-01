@@ -72,7 +72,7 @@ local function getTitle(i)
         end)
         -- Yellow "?" on the right of a ready quest: opens the turn-in window.
         b.turnin = CreateFrame("Button", nil, b)
-        b.turnin:SetSize(18, 18)
+        b.turnin:SetSize(14, 14)
         b.turnin:SetPoint("TOPLEFT", b, "TOPLEFT", 0, 0)
         b.turnin.tex = b.turnin:CreateTexture(nil, "ARTWORK")
         b.turnin.tex:SetAllPoints()
@@ -242,8 +242,8 @@ function Tracker.Refresh()
             title.turnin.ready = quest.ready
             title.turnin:Show()
             title.text:ClearAllPoints()
-            title.text:SetPoint("TOPLEFT", 22, 0)
-            title.text:SetWidth(WIDTH - 30 - PAD - 22)
+            title.text:SetPoint("TOPLEFT", 18, 0)
+            title.text:SetWidth(WIDTH - 30 - PAD - 18)
             title.text:SetText(("|cff%s%s|r%s%s"):format(UI.QUEST_COLOR,
                 UI.QuestText(quest.template.title),
                 stages > 1 and (" (" .. quest.stage .. "/" .. stages .. ")") or "", folded and " [+]" or ""))
