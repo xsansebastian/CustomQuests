@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Tracker: left-click a quest title to open the Journal on that quest.
+
 ## 0.7.0
 
 - Options: the name on the tracker's banner can be changed (default CustomQuests); leaving it empty restores the default.

@@ -18,7 +18,7 @@ L["TURNIN_COMPLETE_SHORT"] = "Completar"
 L["TURNIN_DEFAULT"] = "Has cumplido todos los objetivos."
 L["F_COMPLETION"] = "Texto de misión completada"
 L["STAGE_ADVANCED"] = "%s: etapa %d/%d"
-L["TRACKER_TOOLTIP"] = "Mayús+arrastrar para mover. Clic izquierdo abre el diario. Clic derecho en la cabecera lo pliega todo, y en el título de una misión pliega o despliega esa misión."
+L["TRACKER_TOOLTIP"] = "Mayús+arrastrar para mover. Clic izquierdo en la cabecera abre el diario, y en el título de una misión la abre en el diario. Clic derecho en la cabecera lo pliega todo, y en el título de una misión pliega o despliega esa misión."
 
 L["MM_JOURNAL"] = "Clic izquierdo: abrir el diario"
 L["MM_TRACKER"] = "Clic derecho: mostrar/ocultar el rastreador"

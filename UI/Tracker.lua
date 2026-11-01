@@ -56,7 +56,7 @@ local function stopMove()
     savePosition()
 end
 
--- Quest title: right-click folds or unfolds that quest. Shift+drag moves the tracker.
+-- Quest title: left-click opens it in the Journal, right-click folds or unfolds it. Shift+drag moves the tracker.
 local function getTitle(i)
     local b = titleButtons[i]
     if not b then
@@ -67,13 +67,17 @@ local function getTitle(i)
         b.text:SetWidth(width - 30 - PAD)
         b:SetWidth(width - 30)
         b:RegisterForDrag("LeftButton")
-        b:RegisterForClicks("RightButtonUp")
+        b:RegisterForClicks("LeftButtonUp", "RightButtonUp")
         b:SetScript("OnDragStart", startMove)
         b:SetScript("OnDragStop", stopMove)
-        b:SetScript("OnClick", function(self)
-            local folded = Model.char.questCollapsed
-            folded[self.questID] = not folded[self.questID] or nil
-            Tracker.Refresh()
+        b:SetScript("OnClick", function(self, mouse)
+            if mouse == "RightButton" then
+                local folded = Model.char.questCollapsed
+                folded[self.questID] = not folded[self.questID] or nil
+                Tracker.Refresh()
+            elseif ns.Journal then
+                ns.Journal.ShowQuest(self.questID)
+            end
         end)
         -- Yellow "?" on the right of a ready quest: opens the turn-in window.
         b.turnin = CreateFrame("Button", nil, b)

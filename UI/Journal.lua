@@ -743,6 +743,18 @@ function Journal.ShowTemplate(id)
     if window and window:IsShown() then Journal.Refresh() else Journal.Toggle() end
 end
 
+-- Opens the Journal on an active quest (used by the tracker's left click).
+function Journal.ShowQuest(id)
+    local quest = Lifecycle.Get(id)
+    if not quest then return end
+    state.tab = "active"
+    state.selected.active = id
+    -- Unfold its section so the quest is visible in the list.
+    local section = Model.SectionOf(Model.GetTemplate(quest.templateID) or quest.template)
+    if section then Model.char.sectionCollapsed.log[section] = nil end
+    if window and window:IsShown() then Journal.Refresh() else Journal.Toggle() end
+end
+
 function Journal.Toggle()
     if not window then create() end
     window:SetShown(not window:IsShown())
