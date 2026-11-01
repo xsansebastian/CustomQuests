@@ -1,0 +1,30 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install LuaJIT
+        run: sudo apt-get update && sudo apt-get install -y luajit
+
+      - name: Offline tests
+        run: luajit tests/run.lua
+
+      - name: Screenshot imports still export and re-import
+        run: luajit tools/make_screenshot_imports.lua
+
+      - name: Package builds (every file in the TOC exists)
+        run: python3 tools/build.py
+
+      - name: CHANGELOG has a heading for the TOC version
+        run: |
+          version=$(sed -n 's/^## Version:[[:space:]]*\([^[:space:]]*\).*/\1/p' CustomQuests.toc)
+          grep -qE "^## ${version}\b" CHANGELOG.md || { echo "CHANGELOG.md has no '## ${version}' heading"; exit 1; }
