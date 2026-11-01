@@ -32,8 +32,10 @@ function api.IsSecret(value)
     return issecretvalue ~= nil and issecretvalue(value) or false
 end
 
+-- Bank included (bank, reagent bank, account bank), so moving items between
+-- bags and bank doesn't make the progress drop and count again.
 function api.GetItemCount(itemID)
-    return (C_Item and C_Item.GetItemCount or GetItemCount)(itemID) or 0
+    return (C_Item and C_Item.GetItemCount or GetItemCount)(itemID, true, false, true, true) or 0
 end
 
 function api.GetItemName(itemID)
