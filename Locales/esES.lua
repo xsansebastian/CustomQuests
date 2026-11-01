@@ -6,7 +6,7 @@ local L = ns.L
 -- General
 L["LOADED"] = "v%s cargado. Escribe /cq para abrir tu diario."
 L["WRONG_CLIENT"] = "Este paquete es para %s y puede no funcionar en este cliente."
-L["HELP"] = "/cq - diario · /cq tracker - mostrar/ocultar rastreador · /cq sample - misión de ejemplo · /cq debug - info · /cq reset - forzar reinicios"
+L["HELP"] = "/cq - diario · /cq tracker - mostrar/ocultar rastreador · /cq sample - misión de ejemplo · /cq minimap - mostrar/ocultar botón del minimapa · /cq debug - info · /cq reset - forzar reinicios"
 L["QUEST_COMPLETED"] = "Misión completada: %s"
 L["OBJECTIVE_DONE"] = "Completado"
 L["QUEST_READY"] = "%s: objetivos cumplidos, ¡lista para completar!"
@@ -19,6 +19,12 @@ L["TURNIN_DEFAULT"] = "Has cumplido todos los objetivos."
 L["F_COMPLETION"] = "Texto de misión completada"
 L["STAGE_ADVANCED"] = "%s: etapa %d/%d"
 L["TRACKER_TOOLTIP"] = "Mayús+arrastrar para mover. Clic izquierdo abre el diario. Clic derecho en la cabecera lo pliega todo, y en el título de una misión pliega o despliega esa misión."
+
+L["MM_JOURNAL"] = "Clic izquierdo: abrir el diario"
+L["MM_TRACKER"] = "Clic derecho: mostrar/ocultar el rastreador"
+L["MM_MOVE"] = "Mayús+arrastrar: mover este botón"
+L["MM_HIDDEN"] = "Botón del minimapa oculto. Escribe /cq minimap para mostrarlo de nuevo."
+L["MM_SHOWN"] = "Botón del minimapa visible."
 
 -- Journal
 L["BACK"] = "Volver"

@@ -7,7 +7,7 @@ local L = ns.L
 -- General
 L["LOADED"] = "v%s loaded. Type /cq to open your journal."
 L["WRONG_CLIENT"] = "This package is built for %s and may not work on this client."
-L["HELP"] = "/cq - journal · /cq tracker - show/hide tracker · /cq sample - example quest · /cq debug - info · /cq reset - force resets"
+L["HELP"] = "/cq - journal · /cq tracker - show/hide tracker · /cq sample - example quest · /cq minimap - show/hide minimap button · /cq debug - info · /cq reset - force resets"
 L["QUEST_COMPLETED"] = "Quest completed: %s"
 L["OBJECTIVE_DONE"] = "Complete"
 L["QUEST_READY"] = "%s: objectives done, ready to complete!"
@@ -20,6 +20,12 @@ L["TURNIN_DEFAULT"] = "You have met every objective."
 L["F_COMPLETION"] = "Quest completed text"
 L["STAGE_ADVANCED"] = "%s: stage %d/%d"
 L["TRACKER_TOOLTIP"] = "Shift+drag to move. Left-click opens the journal. Right-click the header to collapse all, or a quest title to fold that quest."
+
+L["MM_JOURNAL"] = "Left-click: open the journal"
+L["MM_TRACKER"] = "Right-click: show/hide the tracker"
+L["MM_MOVE"] = "Shift+drag: move this button"
+L["MM_HIDDEN"] = "Minimap button hidden. Type /cq minimap to show it again."
+L["MM_SHOWN"] = "Minimap button shown."
 
 -- Journal
 L["BACK"] = "Back"

@@ -6,7 +6,7 @@ local L = ns.L
 -- General
 L["LOADED"] = "v%s chargé. Tapez /cq pour ouvrir votre journal."
 L["WRONG_CLIENT"] = "Ce paquet est prévu pour %s et peut ne pas fonctionner sur ce client."
-L["HELP"] = "/cq - journal · /cq tracker - afficher/masquer le suivi · /cq sample - quête d'exemple · /cq debug - infos · /cq reset - forcer les réinitialisations"
+L["HELP"] = "/cq - journal · /cq tracker - afficher/masquer le suivi · /cq sample - quête d'exemple · /cq minimap - afficher/masquer le bouton de la minicarte · /cq debug - infos · /cq reset - forcer les réinitialisations"
 L["QUEST_COMPLETED"] = "Quête terminée : %s"
 L["OBJECTIVE_DONE"] = "Terminé"
 L["QUEST_READY"] = "%s : objectifs atteints, prête à être terminée !"
@@ -19,6 +19,12 @@ L["TURNIN_DEFAULT"] = "Vous avez rempli tous les objectifs."
 L["F_COMPLETION"] = "Texte de fin de quête"
 L["STAGE_ADVANCED"] = "%s : étape %d/%d"
 L["TRACKER_TOOLTIP"] = "Maj+glisser pour déplacer. Clic gauche ouvre le journal. Clic droit sur l'en-tête réduit tout, sur le titre d'une quête replie ou déplie cette quête."
+
+L["MM_JOURNAL"] = "Clic gauche : ouvrir le journal"
+L["MM_TRACKER"] = "Clic droit : afficher/masquer le suivi"
+L["MM_MOVE"] = "Maj+glisser : déplacer ce bouton"
+L["MM_HIDDEN"] = "Bouton de la minicarte masqué. Tapez /cq minimap pour le réafficher."
+L["MM_SHOWN"] = "Bouton de la minicarte affiché."
 
 -- Journal
 L["BACK"] = "Retour"

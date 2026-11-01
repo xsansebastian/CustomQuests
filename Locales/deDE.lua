@@ -6,7 +6,7 @@ local L = ns.L
 -- General
 L["LOADED"] = "v%s geladen. Tippe /cq, um dein Questbuch zu öffnen."
 L["WRONG_CLIENT"] = "Dieses Paket ist für %s gedacht und funktioniert auf diesem Client eventuell nicht."
-L["HELP"] = "/cq - Questbuch · /cq tracker - Verfolgung ein-/ausblenden · /cq sample - Beispielquest · /cq debug - Info · /cq reset - Zurücksetzen erzwingen"
+L["HELP"] = "/cq - Questbuch · /cq tracker - Verfolgung ein-/ausblenden · /cq sample - Beispielquest · /cq minimap - Minikarten-Schaltfläche ein-/ausblenden · /cq debug - Info · /cq reset - Zurücksetzen erzwingen"
 L["QUEST_COMPLETED"] = "Quest abgeschlossen: %s"
 L["OBJECTIVE_DONE"] = "Abgeschlossen"
 L["QUEST_READY"] = "%s: Ziele erreicht, bereit zum Abschließen!"
@@ -19,6 +19,12 @@ L["TURNIN_DEFAULT"] = "Du hast alle Ziele erreicht."
 L["F_COMPLETION"] = "Text bei Questabschluss"
 L["STAGE_ADVANCED"] = "%s: Abschnitt %d/%d"
 L["TRACKER_TOOLTIP"] = "Umschalt+Ziehen zum Verschieben. Linksklick öffnet das Questbuch. Rechtsklick auf die Kopfzeile klappt alles ein, auf einen Questtitel klappt diese Quest ein oder aus."
+
+L["MM_JOURNAL"] = "Linksklick: Questbuch öffnen"
+L["MM_TRACKER"] = "Rechtsklick: Verfolgung ein-/ausblenden"
+L["MM_MOVE"] = "Umschalt+Ziehen: diese Schaltfläche verschieben"
+L["MM_HIDDEN"] = "Minikarten-Schaltfläche ausgeblendet. Tippe /cq minimap, um sie wieder anzuzeigen."
+L["MM_SHOWN"] = "Minikarten-Schaltfläche angezeigt."
 
 -- Journal
 L["BACK"] = "Zurück"
