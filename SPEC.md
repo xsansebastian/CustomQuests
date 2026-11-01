@@ -24,7 +24,7 @@ Usuario: un jugador individual (sin servidor ni coordinación de grupo). Éxito 
 |---|---|---|
 | `model` | Esquema de plantillas, instancias y SavedVariables, migraciones, validación | — |
 | `serializer` | Exportar/importar plantillas como texto (`CQ1:...`), sin `loadstring` | `model` |
-| `objectives` | Motor de progreso: item, kill, location/zone, manual. Eventos y adaptadores | `model` |
+| `objectives` | Motor de progreso: item, kill, location/zone, near, manual. Eventos y adaptadores | `model` |
 | `lifecycle` | Aceptar/abandonar/completar, etapas, reinicio diario/semanal, historial | `model`, `objectives` |
 | `ui-journal` | Ventana: lista de plantillas, editor, activas, historial, importar/exportar | `lifecycle`, `serializer` |
 | `ui-tracker` | Rastreador flotante con progreso en vivo | `lifecycle` |
@@ -93,7 +93,8 @@ Cada misión activa guarda una **copia** de la plantilla al aceptarla, así edit
 | kill (any) | `PARTY_KILL` en un `mapID` dado | Cuenta cualquier muerte del grupo en esa zona/instancia sin leer el GUID. |
 | boss | `ENCOUNTER_END(encounterID, ..., success)` | Sin anotación de secreto. Fiable en mazmorras y bandas. |
 | zone | `C_Map.GetBestMapForUnit("player")` en `ZONE_CHANGED_NEW_AREA` y `PLAYER_ENTERING_WORLD` | |
-| location | `C_Map.GetPlayerMapPosition(mapID, "player")` con `C_Timer.NewTicker(1)` | El ticker solo existe mientras haya objetivos location activos. Puede devolver nil en instancias. |
+| location | `C_Map.GetPlayerMapPosition(mapID, "player")` con `C_Timer.NewTicker(0.5)` | El ticker solo existe mientras haya objetivos location o near pendientes. Puede devolver nil en instancias. |
+| near | Unidades `npc`, `softinteract`, `target`, `mouseover` y placas de nombre con `CheckInteractDistance(unit, 3)`; `PLAYER_SOFT_INTERACT_CHANGED` y `GOSSIP_SHOW` comprueban al instante | npcID desde el GUID; con identidad secreta no cuenta. Al completarse abre el popup con retrato si tiene `dialog`; el tooltip del NPC lista la misión. Ver ADR-007. |
 | manual | Botones +/− en tracker y diario | |
 
 ### Muertes en instancias
