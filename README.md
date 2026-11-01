@@ -27,7 +27,7 @@ One package for **Retail** and **WoW Forever**. English, Spanish, German and Fre
 ### In-game editor
 - Title, quest giver, type (Roleplay or Personal), repeat mode, level range, section and chain link.
 - Description, reward and completion texts with a **colour toolbar**, buttons for the `{name}`, `{class}` and `{race}` tokens, and a **live preview**.
-- Up to 20 stages per quest and 10 objectives per stage.
+- Up to 20 stages per quest and 5 objectives per stage.
 - A **Help** button explains where each ID comes from, and helper buttons fill fields in for you (see [Finding IDs](#finding-ids)).
 
 ### Objective types
@@ -39,6 +39,7 @@ One package for **Retail** and **WoW Forever**. English, Spanish, German and Fre
 | **Zone** | You enter a zone | Also counts from any area inside that zone. |
 | **Subzone** | You reach a named place (the name under the minimap) | For example a town or camp inside a zone. Names follow your game language. |
 | **Location** | You stand close to a spot on the map | Radius in percent of the map. |
+| **Near NPC** | You get close to an NPC | Talking to it, its soft interaction target, or your target, mouseover or a nameplate within about 10 yards. Optional popup text and portrait. Not inside instances, where the game hides who an NPC is. |
 | **Level** | Your character reaches a level | |
 | **Manual** | You count it yourself | For roleplay steps such as "Talk to the innkeeper". |
 
@@ -67,6 +68,11 @@ One package for **Retail** and **WoW Forever**. English, Spanish, German and Fre
 - Import it on any character or account: sections are matched by name or created.
 - **Importing never runs code.** The text is plain data read by the addon's own parser, checked against the quest format, with unknown fields dropped and size limits applied. Quest texts are shown as plain text; the only formatting is the colour tag.
 
+### Sharing in game
+- Right-click a template in Templates or a quest in Active (or a section header) and choose **Share with...**: your target, your group, your guild, or any player by name. They get a popup and the quest is only added if they click **Accept**.
+- **Link in chat** (or Shift+click a template or an active quest) puts `[CustomQuests: Title]` in the chat box. Players with the addon see a coloured `[Title]` link; clicking it asks you for the quest.
+- Anti-spam built in: by default only friends, guild and group can send you offers, one at a time, and you can **Block** a sender. Quests you already have aren't added twice.
+
 ### Minimap button
 - Left-click opens the journal, right-click shows or hides the tracker, Shift+drag moves it. `/cq minimap` hides or shows it.
 
@@ -78,6 +84,7 @@ One package for **Retail** and **WoW Forever**. English, Spanish, German and Fre
 | `/cq tracker` | Show or hide the tracker |
 | `/cq options` | Tracker appearance settings |
 | `/cq minimap` | Hide or show the minimap button |
+| `/cq share <player\|group\|guild>` | Share the template selected in the journal (no name: your target) |
 | `/cq sample` | Add the example quests to Templates |
 | `/cq reset` | Bring back completed daily and weekly quests now (for testing) |
 | `/cq debug` | Print the current map ID, last boss encounter and your quests' state |
@@ -101,15 +108,25 @@ Want to see some examples first? `/cq sample` adds a couple of ready-made quests
 - **Kill**: target the NPC and press **Target** to fill in its ID and name.
 - **Boss**: defeat the boss once, then press **Last boss** to fill in the encounter.
 - **Zone and Subzone**: stand there and press **This map** or **This subzone**.
-- **Location**: stand on the spot and press **My spot**, then set the radius.
+- **Location**: stand on the spot and press **My spot**, then set the radius. **Shown text** replaces "Reach...".
+- **Near NPC**: target the NPC and press **Target**. **Shown text** replaces "Approach..."; **Popup text** opens a window with the NPC's portrait when you get close.
 - `/cq debug` prints the map ID you are on and the last boss encounter.
 
 ## Sharing quests
 
+### In game
+- Right-click a template in **Templates**, or a quest in **Active**, > **Share with...** > **My target**, **My group**, **My guild** or **A player...** (type `Name` or `Name-Realm`). A chain is always shared whole. Right-click a section header to share the whole section. `/cq share <player>` does the same for the selected template.
+- The other player needs CustomQuests. They see who sends what (quest, chain or section, how many quests, size) and choose **Accept**, **Decline** or **Block**. Nothing is added without Accept, and an offer that is ignored just expires.
+- Group and guild offers go to everyone with the addon; each player accepts on their own and receives the quest by whisper.
+- **Link in chat** puts `[CustomQuests: Title]` in the chat box; others with the addon can click it for 10 minutes to ask you for the quest.
+- Options > AddOns > CustomQuests: who may send you offers (friends, guild and group; anyone; nobody), chat links on or off, and unblock all.
+- Received quests go through exactly the same checks as a pasted import: no code is ever run. During raid encounters, Mythic+ and rated PvP the game blocks addon messages; offers wait and go out afterwards. Trial and Veteran accounts can receive quests but not send them.
+
+### As text
 - Select a template and click **Export**. If it belongs to a chain, the whole chain is exported. To share a section, right-click its header > **Export section**.
 - Copy the text with Ctrl+C and send it.
 - The other player opens `/cq` > **Templates** > **Import**, pastes it and clicks **Import**.
-- Limits: 16 KB of text, 20 stages per quest, 10 objectives per stage, 50 quests per chain or section.
+- Limits: 16 KB of text, 20 stages per quest, 5 objectives per stage, 50 quests per chain or section.
 
 ## Tips
 
@@ -165,6 +182,7 @@ Bug reports and ideas are welcome on GitHub: <https://github.com/xsansebastian/C
 | `Compat/Common.lua` | The only file that calls client APIs (`ns.api`); detects Retail or Forever by build number. |
 | `Util.lua`, `Model.lua` | Helpers, schema, validation, SavedVariables. |
 | `Serializer.lua` | `CQ1:` export/import; never executes imported text. |
+| `Comm.lua`, `Share.lua` | In-game sharing: addon-message fragments and throttle; the offer / accept / data protocol (ADR-006). |
 | `Objectives.lua`, `Lifecycle.lua` | Progress engine, stages, chains, resets, history. |
 | `Samples.lua` | The example quests added by `/cq sample`. |
 | `Core.lua` | Events and slash commands. |

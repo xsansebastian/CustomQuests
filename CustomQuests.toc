@@ -5,7 +5,7 @@
 ## Notes-deDE: Erstelle eigene Quests für Rollenspiel und persönliche Ziele, mit automatischer Verfolgung und wiederverwendbaren Vorlagen.
 ## Notes-frFR: Créez vos propres quêtes pour le jeu de rôle et vos objectifs personnels, avec suivi automatique et modèles réutilisables.
 ## Author: Xavi
-## Version: 0.7.0
+## Version: 0.8.0
 ## IconTexture: Interface\AddOns\CustomQuests\Media\Icon
 ## SavedVariables: CustomQuestsDB
 ## SavedVariablesPerCharacter: CustomQuestsCharDB
@@ -18,6 +18,8 @@ Util.lua
 Compat\Common.lua
 Model.lua
 Serializer.lua
+Comm.lua
+Share.lua
 Objectives.lua
 Lifecycle.lua
 Samples.lua
@@ -25,9 +27,13 @@ UI\Common.lua
 UI\Style.lua
 UI\Dialogs.lua
 UI\TurnIn.lua
+UI\NPCTalk.lua
 UI\Tracker.lua
 UI\Minimap.lua
 UI\Options.lua
 UI\Journal.lua
 UI\Editor.lua
+UI\ChatLink.lua
+UI\ItemTooltip.lua
+UI\UnitTooltip.lua
 Core.lua

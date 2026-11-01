@@ -12,7 +12,7 @@ local width = DEFAULT_WIDTH -- the tracker's size: hold Shift and drag its corne
 local userHeight -- nil: as tall as the quests need; a number: that tall, scrolling when they don't fit
 local LINE_HEIGHT = 12
 local PAD = 8 -- left margin inside the tracker
-local ICON_SIZE = 20 -- quest icon in front of each title, as big as the game's own tracker icons
+local ICON_SIZE = 24 -- quest icon in front of each title, as big as the game's own tracker icons
 
 -- Banner header like the game's "All Objectives": dark banner with gold lines,
 -- and a red square button that folds the tracker. Drawn with the game's own
@@ -56,7 +56,7 @@ local function stopMove()
     savePosition()
 end
 
--- Quest title: right-click folds or unfolds that quest. Shift+drag moves the tracker.
+-- Quest title: left-click opens it in the Journal, shift-click stops tracking it, right-click folds or unfolds it. Shift+drag moves the tracker.
 local function getTitle(i)
     local b = titleButtons[i]
     if not b then
@@ -67,20 +67,27 @@ local function getTitle(i)
         b.text:SetWidth(width - 30 - PAD)
         b:SetWidth(width - 30)
         b:RegisterForDrag("LeftButton")
-        b:RegisterForClicks("RightButtonUp")
+        b:RegisterForClicks("LeftButtonUp", "RightButtonUp")
         b:SetScript("OnDragStart", startMove)
         b:SetScript("OnDragStop", stopMove)
-        b:SetScript("OnClick", function(self)
-            local folded = Model.char.questCollapsed
-            folded[self.questID] = not folded[self.questID] or nil
-            Tracker.Refresh()
+        b:SetScript("OnClick", function(self, mouse)
+            if mouse == "LeftButton" and IsShiftKeyDown() then
+                Lifecycle.SetTracked(self.questID, false)
+            elseif mouse == "RightButton" then
+                local folded = Model.char.questCollapsed
+                folded[self.questID] = not folded[self.questID] or nil
+                Tracker.Refresh()
+            elseif ns.Journal then
+                ns.Journal.ShowQuest(self.questID)
+            end
         end)
         -- Yellow "?" on the right of a ready quest: opens the turn-in window.
         b.turnin = CreateFrame("Button", nil, b)
         b.turnin:SetSize(ICON_SIZE, ICON_SIZE)
         b.turnin:SetPoint("TOPLEFT", b, "TOPLEFT", 0, 0)
         b.turnin.tex = b.turnin:CreateTexture(nil, "ARTWORK")
-        b.turnin.tex:SetAllPoints()
+        b.turnin.tex:SetPoint("CENTER")
+        b.turnin.tex:SetSize(ICON_SIZE, ICON_SIZE)
         b.turnin:SetScript("OnClick", function(self) if self.ready then ns.TurnIn.Open(b.questID) end end)
         b.turnin:SetScript("OnEnter", function(self)
             if not self.ready then return end

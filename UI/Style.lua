@@ -137,6 +137,9 @@ function Style.Set(section, key, value)
 end
 
 function Style.Reset()
+    -- The sharing settings aren't appearance: Reset leaves them alone.
+    local sharing = Model.account.options.sharing
     Model.account.options = Model.DefaultOptions()
+    Model.account.options.sharing = sharing
     Style.Refresh()
 end

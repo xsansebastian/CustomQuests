@@ -44,13 +44,18 @@ Samples.EXPLORER = {
         .. "Expedicionarios te recibe con honores: tus historias se contarán durante años.",
     stages = {
         {
-            text = "Visita los diez lugares emblemáticos",
+            text = "Visita los cinco primeros lugares emblemáticos",
             objectives = {
                 { type = "zone", mapID = 37 },  -- Elwynn Forest
                 { type = "zone", mapID = 1 },   -- Durotar
                 { type = "zone", mapID = 50 },  -- Northern Stranglethorn
                 { type = "zone", mapID = 71 },  -- Tanaris
                 { type = "zone", mapID = 78 },  -- Un'Goro Crater
+            },
+        },
+        {
+            text = "Y los cinco últimos",
+            objectives = {
                 { type = "zone", mapID = 83 },  -- Winterspring
                 { type = "zone", mapID = 23 },  -- Eastern Plaguelands
                 { type = "zone", mapID = 107 }, -- Nagrand (Outland)

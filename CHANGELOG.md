@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.8.0
+
+- New objective type **Near NPC**: completes when you get close to an NPC (talking to it, its soft interaction target, or your target, mouseover or a visible nameplate within about 10 yards). Pick the NPC with **Target**. An optional **popup text** opens a window with the NPC's portrait, its name and the text (scrolls when long), with the quest title on its title bar; it opens once, when the objective completes. While the objective is pending, the NPC's tooltip shows the quest and the objective's text. Inside instances the game hides who an NPC is, so it can't count there.
+- Location and Near NPC objectives have a **Shown text** field that replaces the default "Reach..." / "Approach...". The popup text has its own multi-line box in the editor.
+- Objectives: at most 5 per stage (was 10); the objectives list of the editor scrolls. The example quests that went over it were split into stages.
+- Completing the last objective of a quest no longer announces it twice.
+- Journal: a checkbox next to the search box (Templates) hides the quests this character has already completed. Shift+click on an Active quest tracks or untracks it (with a chat box open it still links it).
+- Tracker: Shift+click a quest title stops tracking it.
+- Quest icons all fit the same square, keeping their proportions; before, some were stretched.
+- Journal: a search box above the list (Templates, Active and History, each with its own text) filters as you type. Every word must appear in the title, the section name or a stage's text; folded sections and chains open while you search.
+- Item tooltips: an item that an active quest asks for shows a line with the quest's title and how many you have of how many it needs (green when done).
+- Tracker: left-click a quest title to open the Journal on that quest.
+- Share quests in game: right-click a template, an active quest or a section header > **Share with...** your target, group, guild or any player by name (also `/cq share <player|group|guild>`). The receiver sees a popup with the sender, the title, how many quests and the size, and chooses Accept, Decline or Block; nothing is added without Accept. Received quests go through the same checks as a pasted import.
+- Accepting a shared quest also starts it when it can start (first link of a chain, level fits, not already running); turn this off in Options > AddOns > CustomQuests.
+- Chat links: **Link in chat** (or Shift+click a template or an active quest) types `[CustomQuests: Title]`; players with the addon can click it to ask you for the quest.
+- Sharing safeguards: offers only from friends, guild and group by default (Options > AddOns > CustomQuests: anyone or nobody too), the game's ignore list and your own block list, one offer per sender every 30 seconds, at most 3 waiting, size caps on every transfer, no popups in combat. Offers made during raid encounters, Mythic+ or rated PvP wait until the chat restriction ends. Trial and Veteran accounts are told they can't send.
+- Transfers are compressed when both players' clients support it, and work uncompressed otherwise.
+- Importing a quest you already have no longer creates a second copy; the chat says it was already there. Imports stop at 1000 templates.
+- Journal: when the window is made narrow, the buttons under a quest wrap onto a second row instead of spilling out of the window.
+
 ## 0.7.0
 
 - Options: the name on the tracker's banner can be changed (default CustomQuests); leaving it empty restores the default.

@@ -92,6 +92,16 @@ function Lifecycle.Accept(templateID, viaChain)
     return id
 end
 
+-- Starts every template in ids that can be started right now (a chain only
+-- yields its first link). Returns how many were started.
+function Lifecycle.AcceptAll(ids)
+    local started = 0
+    for _, templateID in ipairs(ids) do
+        if Lifecycle.Accept(templateID) then started = started + 1 end
+    end
+    return started
+end
+
 function Lifecycle.Abandon(questID)
     quests()[questID] = nil
     Model.char.tracked[questID] = nil

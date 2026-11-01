@@ -46,20 +46,41 @@ function UI.QuestKind(template, templateID)
     return "plain"
 end
 
-function UI.SetQuestIcon(texture, kind, iconState)
+-- Width and height that fit an atlas into a box without stretching it.
+local function fitAtlas(name, box)
+    local info = C_Texture.GetAtlasInfo(name)
+    if not info or not info.width or info.width <= 0 or not info.height or info.height <= 0 then return box, box end
+    local scale = box / math.max(info.width, info.height)
+    return info.width * scale, info.height * scale
+end
+
+-- The game's own quest icons (QuestUtil.GetQuestIconActive/Offer). They come in
+-- different native sizes (the "?" is much bigger than the in-progress bubble), so
+-- each is fitted, keeping its proportions, in the same square: box, or the size the
+-- texture has when first used. The texture must be anchored by one point, not SetAllPoints.
+function UI.SetQuestIcon(texture, kind, iconState, box)
     local name = QUEST_ICONS[kind][iconState]
+    if not box then
+        if not texture.iconBox then texture.iconBox = math.max(texture:GetSize()) end
+        box = texture.iconBox
+    end
     if not name:find("\\", 1, true) and atlasExists(name) then
         texture:SetAtlas(name)
+        texture:SetSize(fitAtlas(name, box))
         return
     end
     texture:SetTexture(name:find("\\", 1, true) and name or ICON_FILES[iconState])
     texture:SetTexCoord(0, 1, 0, 1)
+    texture:SetSize(box, box)
 end
 
 -- The same icon as text, to put in front of a title.
 function UI.QuestIconMarkup(kind, iconState, size)
     local name = QUEST_ICONS[kind][iconState]
-    if not name:find("\\", 1, true) and atlasExists(name) then return CreateAtlasMarkup(name, size, size) end
+    if not name:find("\\", 1, true) and atlasExists(name) then
+        local w, h = fitAtlas(name, size)
+        return CreateAtlasMarkup(name, w, h)
+    end
     return "|T" .. (name:find("\\", 1, true) and name or ICON_FILES[iconState]) .. ":" .. size .. "|t"
 end
 
@@ -94,6 +115,7 @@ end
 -- Human-readable objective text (already escaped).
 function UI.ObjectiveLabel(obj)
     local t = obj.type
+    if obj.label and obj.label ~= "" and t ~= "manual" then return UI.QuestText(obj.label) end
     if t == "item" then
         return Util.SafeText(ns.api.GetItemName(obj.itemID) or L["ITEM_N"]:format(obj.itemID))
     elseif t == "kill" then
@@ -110,6 +132,8 @@ function UI.ObjectiveLabel(obj)
         return L["GO_TO"]:format(mapName(obj.mapID))
     elseif t == "location" then
         return L["REACH"]:format(mapName(obj.mapID), obj.x * 100, obj.y * 100)
+    elseif t == "near" then
+        return L["APPROACH"]:format(Util.SafeText(obj.name and obj.name ~= "" and obj.name or L["NPC_N"]:format(obj.npcID)))
     elseif t == "level" then
         return L["REACH_LEVEL"]:format(obj.level)
     elseif t == "manual" then
@@ -124,7 +148,7 @@ function UI.ObjectiveLine(quest, i, obj)
     local goal = ns.Objectives.Goal(obj)
     local done = value >= goal
     local text = UI.ObjectiveLabel(obj)
-    if obj.type ~= "zone" and obj.type ~= "subzone" and obj.type ~= "location" and obj.type ~= "level" then
+    if obj.type ~= "zone" and obj.type ~= "subzone" and obj.type ~= "location" and obj.type ~= "near" and obj.type ~= "level" then
         text = ("%s: %d/%d"):format(text, value, goal)
     end
     if quest.approx and quest.approx[i] then text = text .. " " .. UI.APPROX_ICON end

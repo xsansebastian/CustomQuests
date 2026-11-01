@@ -16,6 +16,7 @@ function ns.RefreshAll(force)
         local updated = Objectives.UpdateItems(quests)
         updated = Objectives.UpdateZone(quests, ns.api.GetPlayerMapID(), ns.api.GetSubZoneNames()) or updated
         updated = Objectives.UpdateLocation(quests) or updated
+        updated = Objectives.UpdateNear(quests, ns.api.GetNearbyNPCs()) or updated
         updated = Objectives.UpdateLevel(quests, ns.playerLevel or ns.api.GetPlayerLevel()) or updated
         local advanced = Lifecycle.Advance()
         changed = changed or updated or advanced
@@ -31,15 +32,24 @@ function ns.ApplyChange(changed)
 end
 
 function ns.UpdateLocationTicker()
-    local needed = Objectives.NeedsLocationPolling(Model.char.active)
+    local quests = Model.char.active
+    local needed = Objectives.NeedsLocationPolling(quests) or Objectives.NeedsNearPolling(quests)
     if needed and not locationTicker then
-        locationTicker = C_Timer.NewTicker(1, function()
-            ns.ApplyChange(Objectives.UpdateLocation(Model.char.active))
+        locationTicker = C_Timer.NewTicker(0.5, function()
+            local active = Model.char.active
+            local moved = Objectives.UpdateLocation(active)
+            if Objectives.UpdateNear(active, ns.api.GetNearbyNPCs()) then moved = true end
+            ns.ApplyChange(moved)
         end)
     elseif not needed and locationTicker then
         locationTicker:Cancel()
         locationTicker = nil
     end
+end
+
+-- Reaching an NPC with a popup text opens the popup.
+Objectives.onNear = function(obj, quest)
+    if obj.dialog and ns.NPCTalk then ns.NPCTalk.Show(obj, quest.template.title) end
 end
 
 local handlers = {}
@@ -58,6 +68,9 @@ function handlers.PLAYER_LOGIN()
     if ns.Tracker then ns.Tracker.Init() end
     if ns.Minimap then ns.Minimap.Init() end
     if ns.Options then ns.Options.Init() end
+    ns.InitSharing()
+    if ns.ItemTooltip then ns.ItemTooltip.Init() end
+    if ns.UnitTooltip then ns.UnitTooltip.Init() end
     ns.RefreshAll()
     ns.TrackProgress() -- records the starting point so login doesn't announce old progress
     C_Timer.NewTicker(60, function()
@@ -104,6 +117,15 @@ function handlers.GET_ITEM_INFO_RECEIVED()
     end)
 end
 
+-- Talking to an NPC or moving the soft target next to one: check right away
+-- instead of waiting for the next tick.
+function handlers.PLAYER_SOFT_INTERACT_CHANGED()
+    if Objectives.NeedsNearPolling(Model.char.active) then
+        ns.ApplyChange(Objectives.UpdateNear(Model.char.active, ns.api.GetNearbyNPCs()))
+    end
+end
+handlers.GOSSIP_SHOW = handlers.PLAYER_SOFT_INTERACT_CHANGED
+
 function handlers.ENCOUNTER_START(encounterID, encounterName)
     ns.lastEncounter = { id = encounterID, name = encounterName }
 end
@@ -115,12 +137,90 @@ function handlers.ENCOUNTER_END(encounterID, encounterName, _, _, success)
     end
 end
 
+-- Sharing (ADR-006) ----------------------------------------------------------------
+-- Share and Comm are pure; this connects them to the client. A ticker runs
+-- only while something is queued, pending or arriving.
+
+local shareTicker, lastLockdownNotice = nil, -100
+
+local function shareWork()
+    if shareTicker then return end
+    shareTicker = C_Timer.NewTicker(0.2, function()
+        local now = ns.api.Clock()
+        ns.Comm.Pump(now)
+        ns.Share.Tick(now)
+        if ns.Share.IsIdle() then
+            shareTicker:Cancel()
+            shareTicker = nil
+        end
+    end)
+end
+
+local function shareNotify(key, ...)
+    if key == "SHARE_QUEUED_LOCKDOWN" or key == "SHARE_PAUSED_LOCKDOWN" then
+        -- One lockdown notice at a time, not one per offer and pause.
+        local now = ns.api.Clock()
+        if now - lastLockdownNotice < 10 then return end
+        lastLockdownNotice = now
+    end
+    ns.api.Print(L[key]:format(...))
+end
+
+function ns.InitSharing()
+    local Comm, Share, Dialogs = ns.Comm, ns.Share, ns.Dialogs
+    ns.api.RegisterCommPrefix(Comm.PREFIX)
+    Comm.transport = ns.api.SendComm
+    Comm.inLockdown = ns.api.InChatLockdown
+    Comm.onLockdown = function() shareNotify("SHARE_PAUSED_LOCKDOWN") end
+    Comm.onFail = Share.OnSendFailed
+    Share.onWork = shareWork
+    Share.notify = shareNotify
+    Share.showOffer = Dialogs.ShowShareOffer
+    Share.hideOffer = Dialogs.HideShareOffer
+    Share.imported = function(entries, ids, skipped, from)
+        ns.api.Print(L["SHARE_FROM"]:format(from))
+        Dialogs.ReportImported(entries, skipped)
+        if ns.Model.SharingOptions().autoStart then
+            local started = ns.Lifecycle.AcceptAll(ids)
+            if started > 0 then ns.api.Print(L["SHARE_STARTED"]:format(started)) end
+        end
+        ns.RefreshAll(true)
+    end
+    if ns.ChatLink then ns.ChatLink.Init() end
+end
+
+-- prefix, text, channel and sender may be secret during a chat lockdown: they
+-- are checked before anything compares them.
+local function onAddonMessage(prefix, text, channel, sender)
+    local api = ns.api
+    if api.IsSecret(prefix) or api.IsSecret(text) or api.IsSecret(channel) or api.IsSecret(sender) then return end
+    if prefix ~= ns.Comm.PREFIX then return end
+    ns.Share.OnMessage(text, channel, sender, api.Clock())
+    shareWork()
+end
+handlers.CHAT_MSG_ADDON = onAddonMessage
+handlers.CHAT_MSG_ADDON_LOGGED = onAddonMessage
+
+-- A chat lockdown began or ended: the ticker pumps the queue, which resumes
+-- on its own once InChatMessagingLockdown() is false.
+function handlers.ADDON_RESTRICTION_STATE_CHANGED()
+    if not ns.Comm.IsIdle() then shareWork() end
+end
+
+-- Offer popups wait for the end of combat.
+function handlers.PLAYER_REGEN_ENABLED()
+    ns.Share.ShowNext()
+end
+
 frame:SetScript("OnEvent", function(_, event, ...)
     -- Nothing to update until SavedVariables are loaded.
     if event ~= "ADDON_LOADED" and not Model.char then return end
-    handlers[event](...)
+    local handler = handlers[event]
+    if handler then handler(...) end
 end)
-for event in pairs(handlers) do frame:RegisterEvent(event) end
+-- pcall: an event this client doesn't have (ADDON_RESTRICTION_STATE_CHANGED on
+-- an older build) must not stop the others from registering.
+for event in pairs(handlers) do pcall(frame.RegisterEvent, frame, event) end
 
 Util.On("QUEST_COMPLETED", function(_, quest)
     ns.api.Print(L["QUEST_COMPLETED"]:format(ns.UI.QuestText(quest.template.title)))
@@ -157,18 +257,23 @@ local function objectiveMessage(obj, value)
 end
 
 -- The stage or quest ended: whatever wasn't seen as done finished just now.
-local function finishSnapshot(questID)
+-- keep: the objectives stay as they are (a quest ready to turn in), so the
+-- next update doesn't announce them a second time.
+local function finishSnapshot(questID, keep)
     local snap = snapshots[questID]
     snapshots[questID] = nil
     if not snap then return end
     local any = false
+    local values = {}
     for i, obj in ipairs(snap.objs) do
         local goal = Objectives.Goal(obj)
+        values[i] = math.max(snap.values[i] or 0, goal)
         if (snap.values[i] or 0) < goal then
             ns.api.Splash(objectiveMessage(obj, goal))
             any = true
         end
     end
+    if keep then snapshots[questID] = { objs = snap.objs, values = values } end
     if any then ns.api.PlayObjectiveSound() end
 end
 
@@ -203,7 +308,7 @@ ns.TrackProgress = trackProgress
 Util.On("QUESTS_CHANGED", trackProgress)
 -- All objectives done: the quest now waits to be turned in.
 Util.On("QUEST_READY", function(questID, quest)
-    finishSnapshot(questID)
+    finishSnapshot(questID, true)
     if not Lifecycle.IsUnlocked(quest) then return end -- a chained quest stays hidden until its turn comes
     local title = ns.UI.QuestText(quest.template.title)
     ns.api.Splash(L["QUEST_READY"]:format(title))
@@ -241,6 +346,7 @@ function commands.debug()
         local q = entry.quest
         ns.api.Print(("  %s [%s] stage %d resetAt=%s"):format(Util.SafeText(q.template.title), q.state, q.stage, tostring(q.resetAt)))
     end
+    if ns.ItemTooltip then ns.ItemTooltip.Debug() end
 end
 
 -- Forces every repeatable completed quest to reset now (testing).
@@ -265,6 +371,22 @@ function commands.options()
     if ns.Options then ns.Options.Open() end
 end
 
+-- /cq share <player | target | group | guild>: offers the template selected in
+-- the journal. Without an argument it goes to the current target.
+function commands.share(arg)
+    local id = ns.Journal and ns.Journal.SelectedTemplate()
+    if not id then ns.api.Print(L["SHARE_SELECT_FIRST"]) return end
+    local word = (arg or ""):lower()
+    if word == "group" or word == "party" or word == "raid" then
+        ns.Dialogs.Share("quest", id, "GROUP")
+    elseif word == "guild" then
+        ns.Dialogs.Share("quest", id, "GUILD")
+    else
+        local target = (word == "" or word == "target") and ns.api.TargetPlayerName() or arg
+        ns.Dialogs.Share("quest", id, "WHISPER", target)
+    end
+end
+
 function commands.help()
     ns.api.Print(L["HELP"])
 end
@@ -272,11 +394,12 @@ end
 SLASH_CUSTOMQUESTS1 = "/cq"
 SLASH_CUSTOMQUESTS2 = "/customquests"
 SlashCmdList["CUSTOMQUESTS"] = function(msg)
-    local cmd = (msg or ""):match("^%s*(%S*)"):lower()
+    local cmd, rest = (msg or ""):match("^%s*(%S*)%s*(.-)%s*$")
+    cmd = cmd:lower()
     if cmd == "" then
         if ns.Journal then ns.Journal.Toggle() end
     elseif commands[cmd] then
-        commands[cmd]()
+        commands[cmd](rest)
     else
         commands.help()
     end

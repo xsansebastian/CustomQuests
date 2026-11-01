@@ -58,6 +58,23 @@ function Objectives.UpdateItems(quests)
     end)
 end
 
+-- The item objectives of the current stage of every active quest that ask for
+-- itemID: a list of { quest = , index = , obj = }. Order: newest quest first.
+function Objectives.FindItem(quests, itemID)
+    local found = {}
+    for _, quest in pairs(quests) do
+        if quest.state == "active" then
+            for i, obj in ipairs(Objectives.CurrentStage(quest).objectives) do
+                if obj.type == "item" and obj.itemID == itemID then
+                    found[#found + 1] = { quest = quest, index = i, obj = obj }
+                end
+            end
+        end
+    end
+    table.sort(found, function(a, b) return (a.quest.acceptedAt or 0) > (b.quest.acceptedAt or 0) end)
+    return found
+end
+
 -- npcID is nil when the kill's identity was secret; then only map-scoped
 -- "any" objectives and fallbackAny objectives on this map can count it.
 function Objectives.OnKill(quests, npcID, mapID)
@@ -117,6 +134,18 @@ function Objectives.UpdateLocation(quests)
     end)
 end
 
+-- Near objectives latch like location ones. npcs is the set of npcIDs the
+-- player is close to right now (ns.api.GetNearbyNPCs).
+function Objectives.UpdateNear(quests, npcs)
+    if not npcs then return false end
+    return eachObjective(quests, "near", function(quest, i, obj)
+        if quest.progress[i] == 1 or not npcs[obj.npcID] then return false end
+        quest.progress[i] = 1
+        if Objectives.onNear then Objectives.onNear(obj, quest) end
+        return true
+    end)
+end
+
 -- Level objectives show current/target level. level is passed in because
 -- UnitLevel can lag behind PLAYER_LEVEL_UP's payload.
 function Objectives.UpdateLevel(quests, level)
@@ -131,6 +160,26 @@ end
 function Objectives.NeedsLocationPolling(quests)
     local needed = false
     eachObjective(quests, "location", function(quest, i)
+        if quest.progress[i] ~= 1 then needed = true end
+    end)
+    return needed
+end
+
+-- The near objectives of the current stage of every active quest that are
+-- waiting for this NPC: a list of { quest = , index = , obj = }.
+function Objectives.FindNear(quests, npcID)
+    local found = {}
+    eachObjective(quests, "near", function(quest, i, obj)
+        if obj.npcID == npcID and quest.progress[i] ~= 1 then
+            found[#found + 1] = { quest = quest, index = i, obj = obj }
+        end
+    end)
+    return found
+end
+
+function Objectives.NeedsNearPolling(quests)
+    local needed = false
+    eachObjective(quests, "near", function(quest, i)
         if quest.progress[i] ~= 1 then needed = true end
     end)
     return needed

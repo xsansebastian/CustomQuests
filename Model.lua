@@ -6,14 +6,14 @@ ns.Model = Model
 
 Model.SCHEMA = 1
 Model.MAX_STAGES = 20
-Model.MAX_OBJECTIVES = 10
+Model.MAX_OBJECTIVES = 5
 Model.MAX_TEXT = 500
 Model.MAX_TITLE = 80
 Model.MAX_SECTIONS = 50
 Model.MAX_SECTION_NAME = 40
 Model.NO_SECTION = "_none" -- key for the quests that belong to no section
 
-Model.OBJECTIVE_TYPES = { "item", "kill", "boss", "zone", "subzone", "location", "level", "manual" }
+Model.OBJECTIVE_TYPES = { "item", "kill", "boss", "zone", "subzone", "location", "near", "level", "manual" }
 Model.KINDS = { "personal", "rp" }
 Model.REPEAT_MODES = { "none", "daily", "weekly" }
 
@@ -29,7 +29,8 @@ local OBJECTIVE_FIELDS = {
     boss     = { encounterID = "number", name = "string", count = "number" },
     zone     = { mapID = "number" },
     subzone  = { name = "string", mapID = "number" }, -- name as shown on the minimap
-    location = { mapID = "number", x = "number", y = "number", radius = "number" },
+    location = { mapID = "number", x = "number", y = "number", radius = "number", label = "string" },
+    near     = { npcID = "number", name = "string", label = "string", dialog = "string" }, -- close to an NPC; label: text shown instead of the default
     level    = { level = "number" },
     manual   = { text = "string", count = "number" },
 }
@@ -72,6 +73,7 @@ function Model.ValidateObjective(obj)
     local t = clean.type
     if t == "item" and not clean.itemID then return nil, "ERR_NEED_ITEM" end
     if t == "kill" and not clean.npcID and not clean.mapID then return nil, "ERR_NEED_NPC_OR_MAP" end
+    if t == "near" and not clean.npcID then return nil, "ERR_NEED_NPC" end
     if t == "boss" and not clean.encounterID then return nil, "ERR_NEED_ENCOUNTER" end
     if t == "subzone" and clean.name and clean.name:match("^%s*$") then clean.name = nil end
     if t == "subzone" and not clean.name then return nil, "ERR_NEED_SUBZONE" end
@@ -80,6 +82,8 @@ function Model.ValidateObjective(obj)
     if t == "manual" and (not clean.text or clean.text == "") then return nil, "ERR_NEED_TEXT" end
     if t == "level" and not clean.level then return nil, "ERR_NEED_LEVEL" end
 
+    if clean.label and clean.label:match("^%s*$") then clean.label = nil end
+    if clean.dialog and clean.dialog:match("^%s*$") then clean.dialog = nil end
     if clean.count then clean.count = clamp(math.floor(clean.count), 1, 100000) end
     if t == "item" or t == "kill" or t == "boss" or t == "manual" then clean.count = clean.count or 1 end
     if t == "level" then clean.level = clamp(math.floor(clean.level), 1, 200) end
@@ -153,7 +157,12 @@ local OPTION_DEFAULTS = {
     font = "default",
     scale = 100,
     tracker = { bg = { 0, 0, 0 }, bgAlpha = 0, border = "none", borderColor = { 1, 0.82, 0 } },
+    -- Quest sharing: whose offers pop up ("trusted" = friends, guild and
+    -- group), and whether [CustomQuests: ...] in chat becomes a link.
+    sharing = { incoming = "trusted", chatLinks = true, autoStart = true },
 }
+
+Model.SHARE_INCOMING = { "trusted", "anyone", "off" }
 
 local function validNumber(v)
     return type(v) == "number" and v == v and v ~= math.huge and v ~= -math.huge
@@ -190,6 +199,7 @@ function Model.CleanOptions(saved)
     local d = OPTION_DEFAULTS.tracker
     local t = type(saved.tracker) == "table" and saved.tracker or {}
     local font = type(saved.font) == "string" and #saved.font > 0 and #saved.font <= 128 and saved.font
+    local sharing = type(saved.sharing) == "table" and saved.sharing or {}
     return {
         title = Model.CleanTrackerTitle(saved.title),
         font = font or OPTION_DEFAULTS.font,
@@ -201,7 +211,55 @@ function Model.CleanOptions(saved)
             border = contains(Model.BORDER_STYLES, t.border) and t.border or d.border,
             borderColor = cleanColor(t.borderColor, d.borderColor),
         },
+        sharing = {
+            incoming = contains(Model.SHARE_INCOMING, sharing.incoming) and sharing.incoming
+                or OPTION_DEFAULTS.sharing.incoming,
+            chatLinks = sharing.chatLinks ~= false,
+            autoStart = sharing.autoStart ~= false,
+        },
     }
+end
+
+function Model.SharingOptions()
+    return Model.account and Model.account.options.sharing or OPTION_DEFAULTS.sharing
+end
+
+-- Players whose shared quests are never shown (lowercase "name-realm").
+Model.MAX_SHARE_BLOCKED = 200
+
+local function cleanBlocked(saved)
+    local out, n = {}, 0
+    if type(saved) ~= "table" then return out end
+    for name, on in pairs(saved) do
+        if on == true and type(name) == "string" and #name <= 64 and not name:find("[|%c]") and n < Model.MAX_SHARE_BLOCKED then
+            out[name:lower()] = true
+            n = n + 1
+        end
+    end
+    return out
+end
+
+function Model.IsShareBlocked(nameKey)
+    return Model.account ~= nil and Model.account.shareBlocked[nameKey] == true
+end
+
+-- Returns false when the list is full.
+function Model.SetShareBlocked(nameKey, blocked)
+    local list = Model.account.shareBlocked
+    if not blocked then list[nameKey] = nil return true end
+    if not list[nameKey] and Model.CountShareBlocked() >= Model.MAX_SHARE_BLOCKED then return false end
+    list[nameKey] = true
+    return true
+end
+
+function Model.CountShareBlocked()
+    local n = 0
+    for _ in pairs(Model.account.shareBlocked) do n = n + 1 end
+    return n
+end
+
+function Model.ClearShareBlocked()
+    Model.account.shareBlocked = {}
 end
 
 -- SavedVariables ------------------------------------------------------------
@@ -226,6 +284,7 @@ function Model.InitDB(accountDB, charDB)
     accountDB.minimap = accountDB.minimap or { angle = 225, hidden = false }
     accountDB.windowSizes = type(accountDB.windowSizes) == "table" and accountDB.windowSizes or {}
     accountDB.options = Model.CleanOptions(accountDB.options)
+    accountDB.shareBlocked = cleanBlocked(accountDB.shareBlocked)
     charDB.schema = charDB.schema or Model.SCHEMA
     charDB.active = charDB.active or {}
     charDB.tracked = charDB.tracked or {}
@@ -303,18 +362,87 @@ function Model.GetChain(id)
     return ordered
 end
 
+-- A canonical text for a value: same content, same text (keys sorted).
+local function canonical(value, out)
+    local kind = type(value)
+    if kind == "table" then
+        local keys = {}
+        for k in pairs(value) do keys[#keys + 1] = k end
+        table.sort(keys, function(a, b)
+            if type(a) == type(b) then return a < b end
+            return type(a) == "number"
+        end)
+        out[#out + 1] = "{"
+        for _, k in ipairs(keys) do
+            canonical(k, out)
+            out[#out + 1] = "="
+            canonical(value[k], out)
+            out[#out + 1] = ","
+        end
+        out[#out + 1] = "}"
+    elseif kind == "string" then
+        out[#out + 1] = "s" .. #value .. ":" .. value
+    else
+        out[#out + 1] = kind:sub(1, 1) .. tostring(value)
+    end
+end
+
+-- What a template says, without where it lives: the chain link, the section
+-- and the creation time are left out. Two templates with the same fingerprint
+-- are the same quest. nil for an invalid template.
+function Model.Fingerprint(tpl)
+    local clean = Model.ValidateTemplate(tpl)
+    if not clean then return nil end
+    clean.requires, clean.section = nil, nil
+    local out = {}
+    canonical(clean, out)
+    return table.concat(out)
+end
+
+-- Most templates an account may hold; imports (pasted or shared) stop here so
+-- nobody can fill the SavedVariables by sending the same pack again and again.
+Model.MAX_TEMPLATES = 1000
+
+function Model.CountTemplates()
+    local n = 0
+    for _ in pairs(Model.account.templates) do n = n + 1 end
+    return n
+end
+
 -- Saves imported templates; entry.requires is an index into entries and
 -- entry.section a section name, matched with an existing section or created.
--- Returns the new ids in the same order.
+-- A template identical to one already saved is not saved again: its slot takes
+-- the existing id and skipped[i] is true. Returns ids (in the same order) and
+-- skipped, or nil and an error key when the new ones would pass MAX_TEMPLATES.
 function Model.SaveImported(entries, now)
-    local ids = {}
-    for i, entry in ipairs(entries) do
-        local tpl = Util.DeepCopy(entry.template)
-        tpl.requires = entry.requires and ids[entry.requires] or nil
-        tpl.section = entry.section and Model.FindOrCreateSection(entry.section, now) or nil
-        ids[i] = Model.SaveTemplate(tpl, nil, now)
+    local known = {}
+    for id, tpl in pairs(Model.account.templates) do
+        local fp = Model.Fingerprint(tpl)
+        -- Several identical templates may exist already: keep the oldest id.
+        if fp and (not known[fp] or id < known[fp]) then known[fp] = id end
     end
-    return ids
+    local fresh = 0
+    for _, entry in ipairs(entries) do
+        if not known[Model.Fingerprint(entry.template) or ""] then fresh = fresh + 1 end
+    end
+    if fresh > 0 and Model.CountTemplates() + fresh > Model.MAX_TEMPLATES then
+        return nil, "ERR_TOO_MANY_TEMPLATES"
+    end
+    local ids, skipped = {}, {}
+    for i, entry in ipairs(entries) do
+        local fp = Model.Fingerprint(entry.template)
+        if fp and known[fp] then
+            ids[i], skipped[i] = known[fp], true
+        else
+            local tpl = Util.DeepCopy(entry.template)
+            tpl.requires = entry.requires and ids[entry.requires] or nil
+            tpl.section = entry.section and Model.FindOrCreateSection(entry.section, now) or nil
+            ids[i] = Model.SaveTemplate(tpl, nil, now)
+            -- Two identical entries in one import are saved once.
+            if fp and ids[i] then known[fp] = ids[i] end
+        end
+    end
+    return ids, skipped
 end
 
 -- Deleting a link keeps the chain whole: follow-ups inherit its prerequisite.
@@ -630,21 +758,48 @@ function Model.GroupBySection(items, getSection, collapsed, showEmpty)
     return out
 end
 
+-- True when text contains every word of query (ignoring case); an empty query
+-- matches anything. MatchesSearch applies it to a whole template: every word of the query must
+-- appear (ignoring case) in its title, its section's name or the text of a stage.
+-- An empty query matches everything.
+function Model.MatchesText(text, query)
+    query = (query or ""):lower():match("^%s*(.-)%s*$")
+    if query == "" then return true end
+    text = text:lower()
+    for word in query:gmatch("%S+") do
+        if not text:find(word, 1, true) then return false end
+    end
+    return true
+end
+
+function Model.MatchesSearch(tpl, query)
+    if (query or ""):match("^%s*$") then return true end
+    local parts = { tpl.title }
+    local section = Model.SectionByID(Model.SectionOf(tpl))
+    if section then parts[#parts + 1] = section.name end
+    for _, stage in ipairs(tpl.stages or {}) do parts[#parts + 1] = stage.text end
+    return Model.MatchesText(table.concat(parts, " "), query)
+end
+
 -- The Templates list with section headers: header entries as above, followed
 -- by that section's TemplateTree rows ({ row = row }). Without sections it is
 -- the plain tree, wrapped the same way. Empty sections keep their header.
-function Model.SectionedTree(sectionCollapsed, chainCollapsed)
+-- With filter(id), only the templates it accepts are listed and the sections
+-- left empty lose their header.
+function Model.SectionedTree(sectionCollapsed, chainCollapsed, filter)
     sectionCollapsed = sectionCollapsed or {}
     local out = {}
     if #Model.account.sections == 0 then
-        for _, row in ipairs(Model.TemplateTree(chainCollapsed)) do out[#out + 1] = { row = row } end
+        for _, row in ipairs(Model.TemplateTree(chainCollapsed, filter)) do out[#out + 1] = { row = row } end
         return out
     end
-    local function add(header, belongs)
+    local function add(header, inSection)
+        local belongs = inSection
+        if filter then belongs = function(id) return filter(id) and inSection(id) end end
         local rows = Model.TemplateTree(chainCollapsed, belongs)
         local total = 0
         for _, row in ipairs(rows) do if row.depth == 0 then total = total + row.count end end
-        if total == 0 and header.id == Model.NO_SECTION then return end
+        if total == 0 and (filter or header.id == Model.NO_SECTION) then return end
         local folded = sectionCollapsed[header.id] and true or false
         out[#out + 1] = { header = header, collapsed = folded, count = total }
         if not folded then

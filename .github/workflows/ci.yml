@@ -2,9 +2,9 @@ name: CI
 
 on:
   pull_request:
-    branches: [main]
+    branches: [main, dev]
   push:
-    branches: [main]
+    branches: [main, dev]
 
 jobs:
   check:
@@ -14,6 +14,13 @@ jobs:
 
       - name: Install LuaJIT
         run: sudo apt-get update && sudo apt-get install -y luajit
+
+      # The game parses Lua 5.1; LuaJIT (which runs the tests) also accepts goto and
+      # other 5.2+ syntax that would stop a file from loading in game.
+      - name: Every source parses as Lua 5.1
+        run: |
+          sudo apt-get install -y lua5.1
+          grep -E '\.lua[[:space:]]*$' CustomQuests.toc | tr -d '\r' | sed 's#\\#/#g' | xargs luac5.1 -p
 
       - name: Offline tests
         run: luajit tests/run.lua

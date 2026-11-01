@@ -28,6 +28,7 @@ Usuario: un jugador individual (sin servidor ni coordinación de grupo). Éxito 
 | `lifecycle` | Aceptar/abandonar/completar, etapas, reinicio diario/semanal, historial | `model`, `objectives` |
 | `ui-journal` | Ventana: lista de plantillas, editor, activas, historial, importar/exportar | `lifecycle`, `serializer` |
 | `ui-tracker` | Rastreador flotante con progreso en vivo | `lifecycle` |
+| `share` | Compartir en el juego: transporte por addon messages y protocolo de oferta | `serializer`, `model` |
 
 Orden: `model` → `serializer`, `objectives` → `lifecycle` → `ui-tracker` → `ui-journal`.
 El tracker va antes que el diario porque permite probar el motor en juego con misiones creadas por `/cq` mientras el editor no existe.
@@ -139,6 +140,8 @@ CustomQuests/
   Compat/Common.lua  ns.api + detección de cliente: único sitio con llamadas a la API del cliente
   Model.lua          esquema, defaults, validación                  [model]
   Serializer.lua     CQ1 encode/decode                              [serializer]
+  Comm.lua           addon messages: tramas, fragmentos, throttle   [share]
+  Share.lua          protocolo oferta/aceptación/datos, enlaces     [share]
   Objectives.lua     motor de progreso                              [objectives]
   Lifecycle.lua      aceptar/completar/etapas/resets/historial      [lifecycle]
   Core.lua           eventos, refresco y comandos /cq
@@ -178,7 +181,7 @@ end
 ## Boundaries
 
 - **Always**: inicializar datos en `ADDON_LOADED`; comprobar `issecretvalue` antes de usar datos de unidades; validar cualquier import; mantener `Compat.lua` como único sitio con ramas por cliente; actualizar esta spec si cambia el modelo.
-- **Ask first**: cambiar el esquema de SavedVariables (requiere migración); añadir librerías (Ace3, LibDataBroker...); integración con el ObjectiveTracker de Blizzard; envío por `SendAddonMessage`; empaquetado separado por cliente.
+- **Ask first**: cambiar el esquema de SavedVariables (requiere migración); añadir librerías (Ace3, LibDataBroker...); integración con el ObjectiveTracker de Blizzard; nuevos usos de `SendAddonMessage` fuera del protocolo de compartir (ADR-006); empaquetado separado por cliente.
 - **Never**: `loadstring` sobre datos importados; `COMBAT_LOG_EVENT_UNFILTERED`; acciones protegidas en combate; intentar revelar valores secretos; editar los archivos del plugin `wow-addon-dev` instalado.
 
 ## Success Criteria
@@ -218,3 +221,26 @@ end
 - **Exportar/importar**: la sección viaja por **nombre** (`sectionName` en una plantilla suelta, `section` en cada entrada de `chain`); al importar se reutiliza la sección del mismo nombre o se crea. Se puede exportar una sección entera (`Serializer.ExportSection`, ≤ 50 misiones).
 - Las misiones activas se agrupan según la plantilla *viva* (no la copia), así que mover una plantilla mueve también su misión en curso. El plegado de Activas y del rastreador es por personaje y separado.
 - Esquema: solo se añaden campos (sin subir `schema`). Una versión anterior del addon perdería `section` al guardar la plantilla.
+
+## Compartir en el juego (ADR-006)
+
+- **Qué:** una misión (con su cadena entera) o una sección. **A quién:** el objetivo, un jugador por nombre (`Nombre` o `Nombre-Reino`), el grupo (PARTY, RAID o INSTANCE_CHAT) o la hermandad. Menú contextual de Plantillas («Compartir con…»), menú de la cabecera de sección y `/cq share <jugador|group|guild>` sobre la plantilla seleccionada.
+- **Protocolo** (prefijo `CustomQuests`, `SendAddonMessageLogged`, campos separados por `~`, versión `1`):
+
+| Trama | Canal | Campos |
+|---|---|---|
+| `O` oferta | WHISPER o grupo/hermandad | `tid`, tipo (`quest`/`chain`/`section`), nº de misiones, bytes del CQ1, `z`, título saneado |
+| `A` aceptar | WHISPER | `tid`, `z` |
+| `N` rechazar | WHISPER | `tid` (o `-` para un enlace caducado), motivo (`declined`, `busy`, `full`, `gone`) |
+| `D` datos | WHISPER | `tid`, `i`, `n`, codificación `p`/`z`, trozo (≤ 240 bytes) |
+| `K` recibido | WHISPER | `tid`, `ok` / `dup` / clave de error |
+| `X` abortar | WHISPER | `tid` |
+| `R` pedir (enlace) | WHISPER | etiqueta del enlace |
+
+- **Recepción:** popup con remitente, título, tipo, nº de misiones y tamaño; Aceptar / Rechazar / Bloquear; expira a los 60 s sin respuesta. Solo tras Aceptar llegan los `DATA`, que pasan por `Serializer.Import` → `Model.ValidateTemplate` → `Model.SaveImported` como un import pegado.
+- **Límites:** 1 oferta por remitente cada 30 s; 3 ofertas esperando; 1 popup; 2 transferencias entrando; 3 ofertas propias vivas; 10 receptores por oferta de grupo; oferta válida 90 s; 30 s sin fragmentos = timeout; 16 KB de texto, 100 fragmentos, nunca más bytes que los anunciados; 1000 plantillas por cuenta.
+- **Opciones** (`CustomQuestsDB.options.sharing`): `incoming` = `trusted` (amigos, hermandad y grupo; por defecto) / `anyone` / `off`; `chatLinks` (por defecto sí); `autoStart` (por defecto sí): al aceptar una oferta se inician las misiones que puedan empezar (de una cadena, solo el primer eslabón; las que ya están activas o fuera de nivel se quedan solo como plantilla). Bloqueados en `CustomQuestsDB.shareBlocked` (`["nombre-reino"] = true`, máx. 200). Solo se añaden campos, sin subir `schema`.
+- **Duplicados:** `Model.SaveImported` omite una plantilla con la misma huella (`Model.Fingerprint`: contenido validado sin sección, enlace ni fecha) y devuelve `ids, skipped`; el chat dice «ya estaba».
+- **Enlace de chat:** `[CustomQuests: Título]` en texto plano (≤ 40 bytes saneados); el filtro local lo convierte en `|Haddon:CustomQuests:<autor>:<título>|h`; el clic pide la misión por `R`; el autor la ofrece si la enlazó hace ≤ 10 min. No se filtran SAY, YELL ni canales numerados; los susurros de desconocidos solo con `incoming = anyone`.
+- **Compresión:** Deflate + base64 de `C_EncodingUtil` si ambos lo tienen (detectado en ejecución); entrada comprimida ≤ 4 KB, salida descartada si no cabe en un CQ1.
+- **Restricciones 12.x:** con `InChatMessagingLockdown()` la cola se pausa y avisa; sigue sola. Payloads secretos de `CHAT_MSG_ADDON(_LOGGED)` y del chat se ignoran. Cuentas de prueba/veterano: no envían, se avisa.
