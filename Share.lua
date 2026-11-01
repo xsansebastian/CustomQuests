@@ -148,7 +148,7 @@ function Share.Offer(kind, id, channel, target, now)
     local title = Util.SafeLabel(info.title, Share.MAX_TITLE)
     outgoing[tid] = {
         tid = tid, text = info.text, kind = info.kind, count = info.count, title = title,
-        channel = channel, target = channel == "WHISPER" and key(target) or nil,
+        channel = channel, target = channel == "WHISPER" and key(target) or nil, targetName = target,
         expires = now + Share.OFFER_TTL, recipients = {}, nRecipients = 0,
     }
     send(channel, target, tid, "O", tid, info.kind, info.count, #info.text, canDecompress() and "1" or "0", title)
@@ -317,6 +317,12 @@ function Share.Accept(offer, now)
         whisper(offer.sender, nil, "A", offer.tid, z and "1" or "0")
         Share.notify("SHARE_RECEIVING", offer.title, offer.senderLabel)
     end
+    Share.ShowNext()
+end
+
+-- The popup closed without an answer (timed out): forget it, say nothing.
+function Share.Dismiss(offer)
+    removePending(offer)
     Share.ShowNext()
 end
 
@@ -575,7 +581,8 @@ function Share.OnSendFailed(tag, result)
     local reason = result == "offline" and "SHARE_FAIL_OFFLINE" or result == "nogroup" and "SHARE_FAIL_NOGROUP"
         or result == "noguild" and "SHARE_FAIL_NOGUILD" or "SHARE_FAIL_SEND"
     local r = who ~= "" and offer.recipients[who]
-    Share.notify(reason, r and Util.SafeLabel(ns.api.ShortName(r.name), 64) or "", offer.title)
+    local name = (r and r.name) or offer.targetName
+    Share.notify(reason, offer.title, name and Util.SafeLabel(ns.api.ShortName(name), 64) or "?")
     if r then r.state = "failed" end
     if who == "" or offer.target then outgoing[tid] = nil end
 end

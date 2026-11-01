@@ -71,7 +71,18 @@ local function getRow(i)
     row.sub:SetPoint("BOTTOMLEFT", row, "BOTTOMLEFT", 32, 5)
     row.sub:SetWidth(listWidth - 40)
     row.sub:SetWordWrap(false)
-    row:SetScript("OnClick", function(self)
+    -- Right-click on a template: its menu (share, export...). Shift-click puts
+    -- a link to it in the open chat box.
+    row:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+    row:SetScript("OnClick", function(self, mouse)
+        if state.tab == "templates" and mouse == "RightButton" then
+            Journal.TemplateMenu(self, self.id)
+            return
+        end
+        if state.tab == "templates" and IsShiftKeyDown() then
+            ns.Dialogs.LinkInChat("quest", self.id)
+            return
+        end
         state.selected[state.tab] = self.id
         Journal.Refresh()
     end)
@@ -275,9 +286,33 @@ function Journal.SectionMenu(owner, sectionID)
         root:CreateButton(L["SECTION_MOVE_UP"], function() if Model.MoveSection(sectionID, -1) then changed() end end)
         root:CreateButton(L["SECTION_MOVE_DOWN"], function() if Model.MoveSection(sectionID, 1) then changed() end end)
         root:CreateButton(L["SECTION_EXPORT"], function() ns.Dialogs.ShowSectionExport(sectionID) end)
+        ns.Dialogs.AddShareMenu(root, "section", sectionID)
         root:CreateDivider()
         root:CreateButton(L["SECTION_DELETE"], function() ns.Dialogs.ConfirmDeleteSection(sectionID, changed) end)
     end)
+end
+
+-- Right-click on a template row in Templates.
+function Journal.TemplateMenu(owner, templateID)
+    local template = Model.GetTemplate(templateID)
+    if not (template and MenuUtil and MenuUtil.CreateContextMenu) then return end
+    MenuUtil.CreateContextMenu(owner, function(_, root)
+        root:CreateTitle(UI.QuestText(template.title))
+        ns.Dialogs.AddShareMenu(root, "quest", templateID)
+        root:CreateButton(L["EXPORT"], function() ns.Dialogs.ShowExport(templateID) end)
+        root:CreateButton(L["EDIT"], function() ns.Editor.Open(templateID) end)
+    end)
+end
+
+-- The template selected in the journal (on Active: the template of the
+-- selected quest, when it still exists), or nil. Used by /cq share.
+function Journal.SelectedTemplate()
+    if state.tab == "active" then
+        local quest = state.selected.active and Lifecycle.Get(state.selected.active)
+        return quest and Model.GetTemplate(quest.templateID) and quest.templateID or nil
+    end
+    local id = state.selected.templates
+    return id and Model.GetTemplate(id) and id or nil
 end
 
 -- Detail -----------------------------------------------------------------------
