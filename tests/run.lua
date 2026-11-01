@@ -1562,5 +1562,17 @@ shareTest("Chat link: unknown or expired links answer 'gone'; hostile markers st
     eq(select(2, b.Share.RequestLink("Bob", "x", net.now)), "ERR_SHARE_SELF")
 end)
 
+test("AcceptAll starts what can start: a chain yields its first link, running quests are left", function()
+    local ids = chainOf(3)
+    local free = assert(Model.SaveTemplate(template({ { type = "manual", text = "x" } }, { title = "Free" }), nil, fake.now))
+    local all = { ids[1], ids[2], ids[3], free }
+    eq(Lifecycle.AcceptAll(all), 2, "first link and the free quest")
+    assert(Lifecycle.FindByTemplate(ids[1]))
+    eq(Lifecycle.FindByTemplate(ids[2]), nil)
+    eq(Lifecycle.AcceptAll(all), 0, "already running: nothing new")
+    eq(Model.CleanOptions({ sharing = { autoStart = false } }).sharing.autoStart, false)
+    eq(Model.CleanOptions({}).sharing.autoStart, true, "on by default")
+end)
+
 print(("%d passed, %d failed"):format(passed, failed))
 if failed > 0 then os.exit(1) end

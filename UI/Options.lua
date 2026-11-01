@@ -11,7 +11,7 @@ local Options = {}
 ns.Options = Options
 
 local WHITE = "Interface\\Buttons\\WHITE8X8"
-local CONTENT_WIDTH, CONTENT_HEIGHT = 560, 560
+local CONTENT_WIDTH, CONTENT_HEIGHT = 560, 600
 
 local panel, category
 local controls = {} -- everything that must re-read its value (after Reset, on show)
@@ -227,12 +227,20 @@ local function build(parent)
     function links:Refresh() self:SetChecked(sharing().chatLinks) end
     controls[#controls + 1] = links
 
+    local autoStart = CreateFrame("CheckButton", nil, content, "UICheckButtonTemplate")
+    autoStart:SetPoint("TOPLEFT", -4, -462)
+    autoStart:SetSize(24, 24)
+    text(content, L["OPT_SHARE_AUTOSTART"], 24, -467)
+    autoStart:SetScript("OnClick", function(self) sharing().autoStart = self:GetChecked() and true or false end)
+    function autoStart:Refresh() self:SetChecked(sharing().autoStart) end
+    controls[#controls + 1] = autoStart
+
     local unblock = UI.CreateButton(content, "", 200, function(self)
         Model.ClearShareBlocked()
         ns.api.Print(L["OPT_SHARE_CLEARED"])
         self:Refresh()
     end)
-    unblock:SetPoint("TOPLEFT", 0, -464)
+    unblock:SetPoint("TOPLEFT", 0, -498)
     function unblock:Refresh()
         local n = Model.account and Model.CountShareBlocked() or 0
         self:SetText(L["OPT_SHARE_CLEAR_BLOCKED"]:format(n))
@@ -240,7 +248,7 @@ local function build(parent)
     end
     controls[#controls + 1] = unblock
 
-    local help = text(content, L["OPT_SHARE_HELP"], 0, -500, "GameFontHighlightSmall")
+    local help = text(content, L["OPT_SHARE_HELP"], 0, -534, "GameFontHighlightSmall")
     help:SetWidth(CONTENT_WIDTH)
 
     parent:SetScript("OnShow", refreshAll)

@@ -156,9 +156,13 @@ function ns.InitSharing()
     Share.notify = shareNotify
     Share.showOffer = Dialogs.ShowShareOffer
     Share.hideOffer = Dialogs.HideShareOffer
-    Share.imported = function(entries, _, skipped, from)
+    Share.imported = function(entries, ids, skipped, from)
         ns.api.Print(L["SHARE_FROM"]:format(from))
         Dialogs.ReportImported(entries, skipped)
+        if ns.Model.SharingOptions().autoStart then
+            local started = ns.Lifecycle.AcceptAll(ids)
+            if started > 0 then ns.api.Print(L["SHARE_STARTED"]:format(started)) end
+        end
         ns.RefreshAll(true)
     end
     if ns.ChatLink then ns.ChatLink.Init() end

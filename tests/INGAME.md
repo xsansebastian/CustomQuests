@@ -42,7 +42,7 @@ Needs two accounts (or a friend) with the addon; some rows need a third player, 
 |---|---|---|---|
 | S1 | A: right-click a template > Share with > My target (B targeted, same realm) | B: popup with A's name, title, "a quest", count and KB; A: "Offered ... Waiting" | |
 | S1b | A: right-click an active quest > Share with... (and Shift+click it) | Same as S1; the quest comes from its template. No menu if the template was deleted | |
-| S2 | B: Accept | B: "Shared by A", "Template imported"; A: "B received". Template identical to A's (compare Export texts) | |
+| S2 | B: Accept | B: "Shared by A", "Template imported"; A: "B received". Template identical to A's (compare Export texts). With the option on (default), B: "Started 1 shared quest(s)" and it is in the tracker; with it off in Options, only the template | |
 | S3 | Repeat S1-S2 after 30 s | B: "Already in your templates"; A: "B already had"; no second copy | |
 | S4 | Share a chain of 3+ quests and a section with long texts (several fragments) | Imported whole, links and section rebuilt | |
 | S5 | B: Decline; then Block on the next offer (after 30 s) | A: "B declined"; after Block A's offers never pop up on B, A gets nothing; Options shows "Unblock all (1)" and clears it | |

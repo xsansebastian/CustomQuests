@@ -155,7 +155,7 @@ local OPTION_DEFAULTS = {
     tracker = { bg = { 0, 0, 0 }, bgAlpha = 0, border = "none", borderColor = { 1, 0.82, 0 } },
     -- Quest sharing: whose offers pop up ("trusted" = friends, guild and
     -- group), and whether [CustomQuests: ...] in chat becomes a link.
-    sharing = { incoming = "trusted", chatLinks = true },
+    sharing = { incoming = "trusted", chatLinks = true, autoStart = true },
 }
 
 Model.SHARE_INCOMING = { "trusted", "anyone", "off" }
@@ -211,6 +211,7 @@ function Model.CleanOptions(saved)
             incoming = contains(Model.SHARE_INCOMING, sharing.incoming) and sharing.incoming
                 or OPTION_DEFAULTS.sharing.incoming,
             chatLinks = sharing.chatLinks ~= false,
+            autoStart = sharing.autoStart ~= false,
         },
     }
 end
