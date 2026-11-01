@@ -9,5 +9,6 @@ Registro de las decisiones de arquitectura de CustomQuests: el porqué, las alte
 | [003](ADR-003-formato-cq1-sin-ejecutar-codigo.md) | Formato `CQ1:` propio que nunca ejecuta código | Accepted |
 | [004](ADR-004-cadenas-frente-a-etapas.md) | Cadenas como plantillas enlazadas, distintas de las etapas | Accepted |
 | [005](ADR-005-componentes-nativos-de-blizzard.md) | Dropdowns e iconos con los componentes nativos de Blizzard | Accepted |
+| [006](ADR-006-compartir-por-addon-messages.md) | Compartir misiones en el juego por addon messages, con oferta y aceptación | Accepted (falta validar en el juego) |
 
 Nuevos ADR: `ADR-NNN-titulo-en-kebab-case.md` con las secciones Status, Date, Context, Decision, Alternatives Considered y Consequences.
