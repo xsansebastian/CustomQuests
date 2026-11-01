@@ -58,6 +58,23 @@ function Objectives.UpdateItems(quests)
     end)
 end
 
+-- The item objectives of the current stage of every active quest that ask for
+-- itemID: a list of { quest = , index = , obj = }. Order: newest quest first.
+function Objectives.FindItem(quests, itemID)
+    local found = {}
+    for _, quest in pairs(quests) do
+        if quest.state == "active" then
+            for i, obj in ipairs(Objectives.CurrentStage(quest).objectives) do
+                if obj.type == "item" and obj.itemID == itemID then
+                    found[#found + 1] = { quest = quest, index = i, obj = obj }
+                end
+            end
+        end
+    end
+    table.sort(found, function(a, b) return (a.quest.acceptedAt or 0) > (b.quest.acceptedAt or 0) end)
+    return found
+end
+
 -- npcID is nil when the kill's identity was secret; then only map-scoped
 -- "any" objectives and fallbackAny objectives on this map can count it.
 function Objectives.OnKill(quests, npcID, mapID)

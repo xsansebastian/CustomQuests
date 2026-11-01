@@ -33,4 +33,5 @@ UI\Options.lua
 UI\Journal.lua
 UI\Editor.lua
 UI\ChatLink.lua
+UI\ItemTooltip.lua
 Core.lua

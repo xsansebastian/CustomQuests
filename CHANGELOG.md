@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Item tooltips: an item that an active quest asks for shows a line with the quest's title and how many you have of how many it needs (green when done).
 - Tracker: left-click a quest title to open the Journal on that quest.
 - Share quests in game: right-click a template, an active quest or a section header > **Share with...** your target, group, guild or any player by name (also `/cq share <player|group|guild>`). The receiver sees a popup with the sender, the title, how many quests and the size, and chooses Accept, Decline or Block; nothing is added without Accept. Received quests go through the same checks as a pasted import.
 - Accepting a shared quest also starts it when it can start (first link of a chain, level fits, not already running); turn this off in Options > AddOns > CustomQuests.

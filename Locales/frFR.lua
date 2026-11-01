@@ -275,6 +275,7 @@ L["SHARE_FAIL_SEND"] = "« %s » n'a pas pu être envoyé. Réessayez plus tard.
 L["SHARE_SELECT_FIRST"] = "Sélectionnez d'abord un modèle dans le journal, puis tapez /cq share <joueur | group | guild>."
 L["SHARE_LINK_NO_CHAT"] = "Ouvrez d'abord la zone de saisie de la discussion, puis choisissez à nouveau Lien dans la discussion."
 L["SHARE_FROM"] = "Partagé par %s"
+L["TOOLTIP_QUEST"] = "Quête : %s"
 L["SHARE_STARTED"] = "%d quête(s) partagée(s) démarrée(s)"
 L["ERR_SHARE_TRIAL"] = "Les comptes d'essai et vétérans ne peuvent pas envoyer de quêtes aux autres joueurs. Ils peuvent toujours en recevoir."
 L["ERR_SHARE_UNAVAILABLE"] = "Le partage n'est pas disponible sur ce client."

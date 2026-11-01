@@ -166,6 +166,7 @@ function ns.InitSharing()
         ns.RefreshAll(true)
     end
     if ns.ChatLink then ns.ChatLink.Init() end
+    if ns.ItemTooltip then ns.ItemTooltip.Init() end
 end
 
 -- prefix, text, channel and sender may be secret during a chat lockdown: they
