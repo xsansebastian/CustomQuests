@@ -68,8 +68,8 @@ One package for **Retail** and **WoW Forever**. English, Spanish, German and Fre
 - **Importing never runs code.** The text is plain data read by the addon's own parser, checked against the quest format, with unknown fields dropped and size limits applied. Quest texts are shown as plain text; the only formatting is the colour tag.
 
 ### Sharing in game
-- Right-click a template (or a section header) and choose **Share with...**: your target, your group, your guild, or any player by name. They get a popup and the quest is only added if they click **Accept**.
-- **Link in chat** (or Shift+click a template) puts `[CustomQuests: Title]` in the chat box. Players with the addon see a link; clicking it asks you for the quest.
+- Right-click a template in Templates or a quest in Active (or a section header) and choose **Share with...**: your target, your group, your guild, or any player by name. They get a popup and the quest is only added if they click **Accept**.
+- **Link in chat** (or Shift+click a template or an active quest) puts `[CustomQuests: Title]` in the chat box. Players with the addon see a link; clicking it asks you for the quest.
 - Anti-spam built in: by default only friends, guild and group can send you offers, one at a time, and you can **Block** a sender. Quests you already have aren't added twice.
 
 ### Minimap button
@@ -113,7 +113,7 @@ Want to see some examples first? `/cq sample` adds a couple of ready-made quests
 ## Sharing quests
 
 ### In game
-- Right-click a template in **Templates** > **Share with...** > **My target**, **My group**, **My guild** or **A player...** (type `Name` or `Name-Realm`). A chain is always shared whole. Right-click a section header to share the whole section. `/cq share <player>` does the same for the selected template.
+- Right-click a template in **Templates**, or a quest in **Active**, > **Share with...** > **My target**, **My group**, **My guild** or **A player...** (type `Name` or `Name-Realm`). A chain is always shared whole. Right-click a section header to share the whole section. `/cq share <player>` does the same for the selected template.
 - The other player needs CustomQuests. They see who sends what (quest, chain or section, how many quests, size) and choose **Accept**, **Decline** or **Block**. Nothing is added without Accept, and an offer that is ignored just expires.
 - Group and guild offers go to everyone with the addon; each player accepts on their own and receives the quest by whisper.
 - **Link in chat** puts `[CustomQuests: Title]` in the chat box; others with the addon can click it for 10 minutes to ask you for the quest.

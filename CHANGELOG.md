@@ -3,8 +3,8 @@
 ## Unreleased
 
 - Tracker: left-click a quest title to open the Journal on that quest.
-- Share quests in game: right-click a template or a section header > **Share with...** your target, group, guild or any player by name (also `/cq share <player|group|guild>`). The receiver sees a popup with the sender, the title, how many quests and the size, and chooses Accept, Decline or Block; nothing is added without Accept. Received quests go through the same checks as a pasted import.
-- Chat links: **Link in chat** (or Shift+click a template) types `[CustomQuests: Title]`; players with the addon can click it to ask you for the quest.
+- Share quests in game: right-click a template, an active quest or a section header > **Share with...** your target, group, guild or any player by name (also `/cq share <player|group|guild>`). The receiver sees a popup with the sender, the title, how many quests and the size, and chooses Accept, Decline or Block; nothing is added without Accept. Received quests go through the same checks as a pasted import.
+- Chat links: **Link in chat** (or Shift+click a template or an active quest) types `[CustomQuests: Title]`; players with the addon can click it to ask you for the quest.
 - Sharing safeguards: offers only from friends, guild and group by default (Options > AddOns > CustomQuests: anyone or nobody too), the game's ignore list and your own block list, one offer per sender every 30 seconds, at most 3 waiting, size caps on every transfer, no popups in combat. Offers made during raid encounters, Mythic+ or rated PvP wait until the chat restriction ends. Trial and Veteran accounts are told they can't send.
 - Transfers are compressed when both players' clients support it, and work uncompressed otherwise.
 - Importing a quest you already have no longer creates a second copy; the chat says it was already there. Imports stop at 1000 templates.
