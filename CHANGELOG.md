@@ -8,6 +8,7 @@
 - Sharing safeguards: offers only from friends, guild and group by default (Options > AddOns > CustomQuests: anyone or nobody too), the game's ignore list and your own block list, one offer per sender every 30 seconds, at most 3 waiting, size caps on every transfer, no popups in combat. Offers made during raid encounters, Mythic+ or rated PvP wait until the chat restriction ends. Trial and Veteran accounts are told they can't send.
 - Transfers are compressed when both players' clients support it, and work uncompressed otherwise.
 - Importing a quest you already have no longer creates a second copy; the chat says it was already there. Imports stop at 1000 templates.
+- Journal: when the window is made narrow, the buttons under a quest wrap onto a second row instead of spilling out of the window.
 
 ## 0.7.0
 
