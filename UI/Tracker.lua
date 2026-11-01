@@ -9,6 +9,7 @@ ns.Tracker = Tracker
 local WIDTH = 260
 local LINE_HEIGHT = 12
 local PAD = 8 -- left margin inside the tracker
+local ICON_SIZE = 20 -- quest icon in front of each title, as big as the game's own tracker icons
 
 -- Banner header like the game's "All Objectives": dark banner with gold lines,
 -- and a red square button that folds the tracker. Drawn with the game's own
@@ -72,7 +73,7 @@ local function getTitle(i)
         end)
         -- Yellow "?" on the right of a ready quest: opens the turn-in window.
         b.turnin = CreateFrame("Button", nil, b)
-        b.turnin:SetSize(14, 14)
+        b.turnin:SetSize(ICON_SIZE, ICON_SIZE)
         b.turnin:SetPoint("TOPLEFT", b, "TOPLEFT", 0, 0)
         b.turnin.tex = b.turnin:CreateTexture(nil, "ARTWORK")
         b.turnin.tex:SetAllPoints()
@@ -244,15 +245,16 @@ function Tracker.Refresh()
             title.turnin.ready = quest.ready
             title.turnin:Show()
             title.text:ClearAllPoints()
-            title.text:SetPoint("TOPLEFT", 18, 0)
-            title.text:SetWidth(WIDTH - 30 - PAD - 18)
+            title.text:SetPoint("LEFT", ICON_SIZE + 4, 0)
+            title.text:SetWidth(WIDTH - 30 - PAD - ICON_SIZE - 4)
             title.text:SetText(("|cff%s%s|r%s%s"):format(UI.QUEST_COLOR,
                 UI.QuestText(quest.template.title),
                 stages > 1 and (" (" .. quest.stage .. "/" .. stages .. ")") or "", folded and " [+]" or ""))
             title:ClearAllPoints()
             title:SetPoint("TOPLEFT", frame, "TOPLEFT", PAD, y)
-            title:SetHeight(title.text:GetStringHeight())
-            y = y - title.text:GetStringHeight() - 1
+            local titleHeight = math.max(title.text:GetStringHeight(), ICON_SIZE)
+            title:SetHeight(titleHeight)
+            y = y - titleHeight - 1
 
             for i, obj in ipairs(folded and {} or Objectives.CurrentStage(quest).objectives) do
                 n = n + 1
