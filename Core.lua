@@ -16,6 +16,7 @@ function ns.RefreshAll(force)
         local updated = Objectives.UpdateItems(quests)
         updated = Objectives.UpdateZone(quests, ns.api.GetPlayerMapID(), ns.api.GetSubZoneNames()) or updated
         updated = Objectives.UpdateLocation(quests) or updated
+        updated = Objectives.UpdateNear(quests, ns.api.GetNearbyNPCs()) or updated
         updated = Objectives.UpdateLevel(quests, ns.playerLevel or ns.api.GetPlayerLevel()) or updated
         local advanced = Lifecycle.Advance()
         changed = changed or updated or advanced
@@ -31,15 +32,24 @@ function ns.ApplyChange(changed)
 end
 
 function ns.UpdateLocationTicker()
-    local needed = Objectives.NeedsLocationPolling(Model.char.active)
+    local quests = Model.char.active
+    local needed = Objectives.NeedsLocationPolling(quests) or Objectives.NeedsNearPolling(quests)
     if needed and not locationTicker then
-        locationTicker = C_Timer.NewTicker(1, function()
-            ns.ApplyChange(Objectives.UpdateLocation(Model.char.active))
+        locationTicker = C_Timer.NewTicker(0.5, function()
+            local active = Model.char.active
+            local moved = Objectives.UpdateLocation(active)
+            if Objectives.UpdateNear(active, ns.api.GetNearbyNPCs()) then moved = true end
+            ns.ApplyChange(moved)
         end)
     elseif not needed and locationTicker then
         locationTicker:Cancel()
         locationTicker = nil
     end
+end
+
+-- Reaching an NPC with a popup text opens the popup.
+Objectives.onNear = function(obj, quest)
+    if obj.dialog and ns.NPCTalk then ns.NPCTalk.Show(obj, quest.template.title) end
 end
 
 local handlers = {}
@@ -60,6 +70,7 @@ function handlers.PLAYER_LOGIN()
     if ns.Options then ns.Options.Init() end
     ns.InitSharing()
     if ns.ItemTooltip then ns.ItemTooltip.Init() end
+    if ns.UnitTooltip then ns.UnitTooltip.Init() end
     ns.RefreshAll()
     ns.TrackProgress() -- records the starting point so login doesn't announce old progress
     C_Timer.NewTicker(60, function()
@@ -105,6 +116,15 @@ function handlers.GET_ITEM_INFO_RECEIVED()
         Util.Fire("QUESTS_CHANGED")
     end)
 end
+
+-- Talking to an NPC or moving the soft target next to one: check right away
+-- instead of waiting for the next tick.
+function handlers.PLAYER_SOFT_INTERACT_CHANGED()
+    if Objectives.NeedsNearPolling(Model.char.active) then
+        ns.ApplyChange(Objectives.UpdateNear(Model.char.active, ns.api.GetNearbyNPCs()))
+    end
+end
+handlers.GOSSIP_SHOW = handlers.PLAYER_SOFT_INTERACT_CHANGED
 
 function handlers.ENCOUNTER_START(encounterID, encounterName)
     ns.lastEncounter = { id = encounterID, name = encounterName }
@@ -237,18 +257,23 @@ local function objectiveMessage(obj, value)
 end
 
 -- The stage or quest ended: whatever wasn't seen as done finished just now.
-local function finishSnapshot(questID)
+-- keep: the objectives stay as they are (a quest ready to turn in), so the
+-- next update doesn't announce them a second time.
+local function finishSnapshot(questID, keep)
     local snap = snapshots[questID]
     snapshots[questID] = nil
     if not snap then return end
     local any = false
+    local values = {}
     for i, obj in ipairs(snap.objs) do
         local goal = Objectives.Goal(obj)
+        values[i] = math.max(snap.values[i] or 0, goal)
         if (snap.values[i] or 0) < goal then
             ns.api.Splash(objectiveMessage(obj, goal))
             any = true
         end
     end
+    if keep then snapshots[questID] = { objs = snap.objs, values = values } end
     if any then ns.api.PlayObjectiveSound() end
 end
 
@@ -283,7 +308,7 @@ ns.TrackProgress = trackProgress
 Util.On("QUESTS_CHANGED", trackProgress)
 -- All objectives done: the quest now waits to be turned in.
 Util.On("QUEST_READY", function(questID, quest)
-    finishSnapshot(questID)
+    finishSnapshot(questID, true)
     if not Lifecycle.IsUnlocked(quest) then return end -- a chained quest stays hidden until its turn comes
     local title = ns.UI.QuestText(quest.template.title)
     ns.api.Splash(L["QUEST_READY"]:format(title))

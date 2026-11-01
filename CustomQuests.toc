@@ -27,6 +27,7 @@ UI\Common.lua
 UI\Style.lua
 UI\Dialogs.lua
 UI\TurnIn.lua
+UI\NPCTalk.lua
 UI\Tracker.lua
 UI\Minimap.lua
 UI\Options.lua
@@ -34,4 +35,5 @@ UI\Journal.lua
 UI\Editor.lua
 UI\ChatLink.lua
 UI\ItemTooltip.lua
+UI\UnitTooltip.lua
 Core.lua
