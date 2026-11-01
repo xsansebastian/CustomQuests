@@ -15,7 +15,7 @@ ns.ChatLink = ChatLink
 local EVENTS = {
     "CHAT_MSG_PARTY", "CHAT_MSG_PARTY_LEADER", "CHAT_MSG_RAID", "CHAT_MSG_RAID_LEADER",
     "CHAT_MSG_INSTANCE_CHAT", "CHAT_MSG_INSTANCE_CHAT_LEADER", "CHAT_MSG_GUILD", "CHAT_MSG_OFFICER",
-    "CHAT_MSG_WHISPER",
+    "CHAT_MSG_WHISPER", "CHAT_MSG_WHISPER_INFORM",
 }
 
 local function filter(_, event, msg, author, ...)
@@ -25,10 +25,12 @@ local function filter(_, event, msg, author, ...)
         return false
     end
     if not msg:find("[CustomQuests: ", 1, true) then return false end
-    local full = ns.api.FullName(author)
-    if not full or full:lower() == ns.api.PlayerFullName():lower() then return false end
+    -- The echo of our own whisper carries the target as author; the link is still ours.
+    local full = event == "CHAT_MSG_WHISPER_INFORM" and ns.api.PlayerFullName() or ns.api.FullName(author)
+    if not full then return false end
+    local mine = full:lower() == ns.api.PlayerFullName():lower()
     -- Whispers from strangers stay text unless offers from anyone are allowed.
-    if event == "CHAT_MSG_WHISPER" and ns.Model.SharingOptions().incoming ~= "anyone"
+    if event == "CHAT_MSG_WHISPER" and not mine and ns.Model.SharingOptions().incoming ~= "anyone"
         and not ns.api.IsTrusted(full) then
         return false
     end
@@ -41,7 +43,8 @@ local function onClick(link)
     local author, label = ns.Share.ParseLink(link)
     if not author then return end
     local ok, err = ns.Share.RequestLink(author, label, ns.api.Clock())
-    if not ok then ns.api.Print(UI.ErrorText(err)) end
+    -- Our own link (the sender sees it coloured too): nothing to ask.
+    if not ok and err ~= "ERR_SHARE_SELF" then ns.api.Print(UI.ErrorText(err)) end
 end
 
 function ChatLink.Init()

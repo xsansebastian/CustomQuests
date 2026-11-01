@@ -56,6 +56,7 @@ Needs two accounts (or a friend) with the addon; some rows need a third player, 
 | S13 | `/cq share`, `/cq share Name`, `/cq share group`, `/cq share guild` with a template selected; and with none | Same as the menu; without a selection a hint | |
 | S14 | Offer to an offline / misspelled player | "wasn't sent: ... offline or out of reach" | |
 | S15 | Link in chat (and Shift+click a template) in party, guild and whisper | `[CustomQuests: Title]` inserted; B sees a blue clickable link, players without the addon plain text | |
+| S15b | Link in chat in a whisper to yourself, and in party as the sender | The link shows coloured (light blue) on your own line too, as on the receiver; clicking your own link does nothing | |
 | S16 | B clicks the link; again within 10 s; after 10 min | Offer popup from A (even with "Nobody"); "Wait a few seconds"; "no longer offers that quest" | |
 | S17 | Chat text with a forged `[CustomQuests: x|Hitem...]` or colons in the label | Stays plain text | |
 | S18 | Options: untick chat links | Markers stay plain text | |
