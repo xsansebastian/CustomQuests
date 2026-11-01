@@ -1574,5 +1574,157 @@ test("AcceptAll starts what can start: a chain yields its first link, running qu
     eq(Model.CleanOptions({}).sharing.autoStart, true, "on by default")
 end)
 
+test("Search: words match title, section name and stage text; a filter hides empty sections", function()
+    local s = assert(Model.CreateSection("Lost Isles", fake.now))
+    local a = quest("Herbs for the Kettle")
+    local b = quest("Patrol the Road")
+    Model.GetTemplate(b).section = s
+    Model.GetTemplate(a).stages[1].text = "Pick flowers near the inn"
+    local function matches(id, q) return Model.MatchesSearch(Model.GetTemplate(id), q) end
+    eq(matches(a, ""), true, "empty query matches everything")
+    eq(matches(a, "  "), true)
+    eq(Model.MatchesText("Patrol the Road", "ROAD patrol"), true, "plain text, as the history list uses it")
+    eq(Model.MatchesText("Patrol the Road", "kettle"), false)
+    eq(matches(a, "HERBS kettle"), true, "every word, any case, any order")
+    eq(matches(a, "herbs road"), false, "all words must match")
+    eq(matches(a, "flowers"), true, "stage text")
+    eq(matches(b, "isles"), true, "section name")
+    eq(matches(a, "isles"), false)
+    local tree = Model.SectionedTree({}, {}, function(id) return matches(id, "road") end)
+    eq(#tree, 2, "one header and one row")
+    eq(tree[1].header.id, s)
+    local none = Model.SectionedTree({}, {}, function(id) return matches(id, "zzz") end)
+    eq(#none, 0, "no matches: no headers either")
+    Model.DeleteSection(s)
+    eq(#Model.SectionedTree({}, {}, function(id) return matches(id, "herbs") end), 1, "no sections: plain tree")
+end)
+
+-- WoW runs Lua 5.1, but these tests run on LuaJIT, which also accepts goto,
+-- labels and a few other 5.2+ extras. A file that uses one loads fine here and
+-- fails in the game (the whole file, silently). CI also runs `luac5.1 -p`; this
+-- is the same guard for local runs, without needing a 5.1 compiler.
+
+-- Returns the code of a Lua source with comments removed and strings emptied
+-- (so words inside them are not mistaken for code), plus the escapes found in
+-- strings that 5.1 does not have (\x, \z, \u).
+local function codeOnly(src)
+    local out, badEscapes = {}, {}
+    local i, n = 1, #src
+    local function longBracket(at)
+        local eqs = src:match("^%[(=*)%[", at)
+        if not eqs then return nil end
+        local close = "]" .. eqs .. "]"
+        local _, stop = src:find(close, at, true)
+        return stop or n
+    end
+    while i <= n do
+        local c = src:sub(i, i)
+        if src:sub(i, i + 1) == "--" then
+            local stop = longBracket(i + 2)
+            if stop then
+                i = stop + 1
+            else
+                i = (src:find("\n", i, true) or n + 1)
+            end
+        elseif c == "[" and longBracket(i) then
+            i = longBracket(i) + 1
+            out[#out + 1] = '""'
+        elseif c == '"' or c == "'" then
+            local j = i + 1
+            while j <= n and src:sub(j, j) ~= c do
+                if src:sub(j, j) == "\\" then
+                    local esc = src:sub(j + 1, j + 1)
+                    if esc == "x" or esc == "z" or esc == "u" then badEscapes[#badEscapes + 1] = "\\" .. esc end
+                    j = j + 1
+                end
+                j = j + 1
+            end
+            i = j + 1
+            out[#out + 1] = '""'
+        else
+            out[#out + 1] = c
+            i = i + 1
+        end
+    end
+    return table.concat(out), badEscapes
+end
+
+-- Names of the 5.2+ features found in a source, as a sorted list.
+local function lua52Features(src)
+    local code, badEscapes = codeOnly(src)
+    local found = {}
+    local function check(pattern, name)
+        if code:find(pattern) then found[#found + 1] = name end
+    end
+    check("%f[%w_]goto%f[^%w_]", "goto")
+    check("::[%a_][%w_]*::", "label")
+    check("//", "// operator")
+    check("<<", "<< operator")
+    check(">>", ">> operator")
+    check("[^~]~[^=]", "~ operator")
+    check("&", "& operator")
+    check("|", "| operator")
+    check("<%s*const%s*>", "<const>")
+    check("<%s*close%s*>", "<close>")
+    check("%f[%w_]utf8%.", "utf8 library")
+    check("%f[%w_]bit32%.", "bit32 library")
+    check("math%.type%f[^%w_]", "math.type")
+    check("table%.move%f[^%w_]", "table.move")
+    check("string%.pack%f[^%w_]", "string.pack")
+    for _, esc in ipairs(badEscapes) do found[#found + 1] = "string escape " .. esc end
+    table.sort(found)
+    return found
+end
+
+test("The Lua 5.2+ checker spots what 5.1 can't parse and ignores strings and comments", function()
+    eq(table.concat(lua52Features("for i = 1, 3 do if i then goto continue end ::continue:: end"), ","), "goto,label")
+    eq(table.concat(lua52Features("local x = 7 // 2 << 1 & 3 | 4 ~ 5"), ","), "& operator,// operator,<< operator,| operator,~ operator")
+    eq(table.concat(lua52Features("local t <const> = 1"), ","), "<const>")
+    eq(table.concat(lua52Features('local s = "\\x41\\z"'), ","), "string escape \\x,string escape \\z")
+    eq(table.concat(lua52Features("return utf8.len(s) + table.move(a, 1, 2, 3)"), ","), "table.move,utf8 library")
+    eq(#lua52Features([[
+        -- goto is mentioned here, and so is // and ::label::
+        --[==[ a long comment: goto x ]==]
+        local a = "goto // :: | &" .. 'and ~ <<'
+        local b = [=[ goto ]=]
+        if a ~= b and a <= b then return 1 end
+    ]]), 0, "words in comments and strings are not code, ~= and <= are fine")
+end)
+
+test("Every file in the TOC is plain Lua 5.1 (what the game parses)", function()
+    local toc = assert(io.open("CustomQuests.toc", "rb"))
+    local count = 0
+    for line in toc:lines() do
+        local file = line:match("^(.-%.lua)%s*$")
+        if file then
+            local f = assert(io.open((file:gsub("\\", "/")), "rb"))
+            local src = f:read("*a")
+            f:close()
+            count = count + 1
+            eq(table.concat(lua52Features(src), ", "), "", file .. " uses Lua 5.2+ features")
+        end
+    end
+    toc:close()
+    eq(count > 10, true, "the TOC lists the sources")
+end)
+
+test("FindItem lists the active quests that ask for an item, with their progress", function()
+    local a = assert(Model.SaveTemplate(template({ { type = "item", itemID = 4242, count = 5 } }, { title = "Herbs" }), nil, fake.now))
+    local b = assert(Model.SaveTemplate(template({ { type = "item", itemID = 4242, count = 2 }, { type = "kill", npcID = 1, count = 1 } }, { title = "More herbs" }), nil, fake.now))
+    local other = assert(Model.SaveTemplate(template({ { type = "item", itemID = 9, count = 1 } }, { title = "Other" }), nil, fake.now))
+    for _, id in ipairs({ a, b, other }) do assert(Lifecycle.Accept(id)) end
+    fake.items[4242] = 3
+    Objectives.UpdateItems(Model.char.active)
+    local found = Objectives.FindItem(Model.char.active, 4242)
+    eq(#found, 2)
+    local goals = {}
+    for _, hit in ipairs(found) do
+        goals[hit.quest.template.title] = hit.quest.progress[hit.index] .. "/" .. Objectives.Goal(hit.obj)
+    end
+    eq(goals["Herbs"], "3/5")
+    eq(goals["More herbs"], "2/2")
+    eq(#Objectives.FindItem(Model.char.active, 777), 0)
+end)
+
 print(("%d passed, %d failed"):format(passed, failed))
 if failed > 0 then os.exit(1) end
