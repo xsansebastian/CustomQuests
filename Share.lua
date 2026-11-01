@@ -504,7 +504,7 @@ function Share.LinkifyMarkers(msg, author)
     msg, count = msg:gsub(MARKER, function(label)
         label = Util.SafeLabel(label, Share.MAX_LABEL)
         if label == "" then return nil end
-        return ("|cff71d5ff|Haddon:CustomQuests:%s:%s|h[CustomQuests: %s]|h|r"):format(safeAuthor, label, label)
+        return ("|cff71d5ff|Haddon:CustomQuests:%s:%s|h[%s]|h|r"):format(safeAuthor, label, label)
     end)
     return count > 0 and msg or nil
 end

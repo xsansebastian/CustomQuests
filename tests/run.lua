@@ -1532,7 +1532,7 @@ shareTest("Chat link: the marker becomes a local link and a click asks the sende
     local marker = assert(a.Share.MakeLink("quest", id, net.now))
     eq(marker, "[CustomQuests: The cffff0000Ember Oath 1]")
     local msg = b.Share.LinkifyMarkers("look " .. marker .. "!", "Alice-Realm")
-    eq(msg, "look |cff71d5ff|Haddon:CustomQuests:Alice-Realm:The cffff0000Ember Oath 1|h[CustomQuests: The cffff0000Ember Oath 1]|h|r!")
+    eq(msg, "look |cff71d5ff|Haddon:CustomQuests:Alice-Realm:The cffff0000Ember Oath 1|h[The cffff0000Ember Oath 1]|h|r!")
     local author, label = b.Share.ParseLink("addon:CustomQuests:Alice-Realm:The cffff0000Ember Oath 1")
     eq(author, "Alice-Realm")
     assert(b.Share.RequestLink(author, label, net.now))

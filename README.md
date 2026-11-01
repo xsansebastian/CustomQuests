@@ -69,7 +69,7 @@ One package for **Retail** and **WoW Forever**. English, Spanish, German and Fre
 
 ### Sharing in game
 - Right-click a template in Templates or a quest in Active (or a section header) and choose **Share with...**: your target, your group, your guild, or any player by name. They get a popup and the quest is only added if they click **Accept**.
-- **Link in chat** (or Shift+click a template or an active quest) puts `[CustomQuests: Title]` in the chat box. Players with the addon see a link; clicking it asks you for the quest.
+- **Link in chat** (or Shift+click a template or an active quest) puts `[CustomQuests: Title]` in the chat box. Players with the addon see a coloured `[Title]` link; clicking it asks you for the quest.
 - Anti-spam built in: by default only friends, guild and group can send you offers, one at a time, and you can **Block** a sender. Quests you already have aren't added twice.
 
 ### Minimap button
