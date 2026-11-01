@@ -11,7 +11,7 @@ local Options = {}
 ns.Options = Options
 
 local WHITE = "Interface\\Buttons\\WHITE8X8"
-local CONTENT_WIDTH, CONTENT_HEIGHT = 560, 330
+local CONTENT_WIDTH, CONTENT_HEIGHT = 560, 380
 
 local panel, category
 local controls = {} -- everything that must re-read its value (after Reset, on show)
@@ -189,11 +189,23 @@ local function build(parent)
         function() return cfg().borderColor end,
         function(color) Style.Set("tracker", "borderColor", color) end)
 
+    -- The name written on the tracker's banner; empty goes back to the default.
+    text(content, L["OPT_TITLE"], 0, -262)
+    local titleBox = UI.CreateEditBox(content, 190)
+    titleBox:SetPoint("TOPLEFT", 156, -258)
+    titleBox:SetMaxLetters(Model.MAX_TRACKER_TITLE)
+    titleBox:SetScript("OnTextChanged", function(self, userInput)
+        if userInput then Style.Set(nil, "title", self:GetText()) end
+    end)
+    function titleBox:Refresh() self:SetText(Model.CleanTrackerTitle(Style.Options().title)) end
+    titleBox:SetScript("OnEditFocusLost", titleBox.Refresh)
+    controls[#controls + 1] = titleBox
+
     local reset = UI.CreateButton(content, L["OPT_RESET"], 160, function()
         Style.Reset()
         refreshAll()
     end)
-    reset:SetPoint("TOPLEFT", 0, -284)
+    reset:SetPoint("TOPLEFT", 0, -314)
 
     parent:SetScript("OnShow", refreshAll)
     refreshAll()

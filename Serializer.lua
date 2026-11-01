@@ -155,30 +155,77 @@ function Serializer.Decode(text)
     return value
 end
 
+-- Sections travel by name: their ids mean nothing on another account. On
+-- import the name is matched with a section of the same name or creates one.
+local function sectionNameOf(tpl)
+    local section = ns.Model.SectionByID(tpl.section)
+    return section and section.name or nil
+end
+
+-- A name read from untrusted data, or nil.
+local function readSectionName(value)
+    return ns.Model.CleanSectionName(value)
+end
+
 -- Export only what a template needs; drops local fields like createdAt and
 -- the prerequisite id, which means nothing on another account.
 function Serializer.ExportTemplate(tpl)
     local clean = ns.Model.ValidateTemplate(tpl)
     if not clean then return nil end
     clean.requires = nil
+    clean.sectionName = sectionNameOf(tpl)
+    clean.section = nil
     return Serializer.Encode(clean)
 end
 
--- Exports the whole chain id belongs to. A lone template uses the plain
--- format; a chain is { chain = { { template, requires = index } ... } }.
-function Serializer.ExportChain(id)
+local function chainEntries(ids)
     local Model = ns.Model
-    local ids = Model.GetChain(id)
-    if #ids <= 1 then return Serializer.ExportTemplate(Model.GetTemplate(id)) end
     local index, entries = {}, {}
     for i, templateID in ipairs(ids) do index[templateID] = i end
     for i, templateID in ipairs(ids) do
         local tpl = Model.GetTemplate(templateID)
         local clean = Model.ValidateTemplate(tpl)
         clean.requires = nil
-        entries[i] = { template = clean, requires = tpl.requires and index[tpl.requires] }
+        clean.section = nil
+        entries[i] = { template = clean, requires = tpl.requires and index[tpl.requires], section = sectionNameOf(tpl) }
     end
-    return Serializer.Encode({ chain = entries })
+    return entries
+end
+
+-- Exports the whole chain id belongs to. A lone template uses the plain
+-- format; a chain is { chain = { { template, requires = index, section = name } ... } }.
+function Serializer.ExportChain(id)
+    local Model = ns.Model
+    local ids = Model.GetChain(id)
+    if #ids <= 1 then return Serializer.ExportTemplate(Model.GetTemplate(id)) end
+    return Serializer.Encode({ chain = chainEntries(ids) })
+end
+
+-- Exports every quest of a section (nil when it has none). Links between them
+-- are kept; a link to a quest outside the section is dropped. At most 50.
+function Serializer.ExportSection(sectionID)
+    local Model = ns.Model
+    local members = {}
+    for _, entry in ipairs(Model.ListTemplates()) do
+        if Model.SectionOf(entry.template) == sectionID then members[entry.id] = true end
+    end
+    -- Prerequisites first, so every link points at an earlier entry.
+    local ids, placed = {}, {}
+    local progress = true
+    while progress and #ids < 50 do
+        progress = false
+        for _, entry in ipairs(Model.ListTemplates()) do
+            local id, requires = entry.id, entry.template.requires
+            if members[id] and not placed[id] and (not (requires and members[requires]) or placed[requires]) then
+                placed[id] = true
+                ids[#ids + 1] = id
+                progress = true
+                if #ids >= 50 then break end
+            end
+        end
+    end
+    if #ids == 0 then return nil end
+    return Serializer.Encode({ chain = chainEntries(ids) })
 end
 
 -- Returns a validated template, or nil and an error key.
@@ -186,12 +233,12 @@ function Serializer.ImportTemplate(text)
     local decoded, err = Serializer.Decode(text)
     if not decoded then return nil, err end
     local clean, validateErr = ns.Model.ValidateTemplate(decoded)
-    if clean then clean.requires = nil end
+    if clean then clean.requires = nil clean.section = nil end
     return clean, validateErr
 end
 
 -- Accepts a single template or a chain. Returns a list of
--- { template, requires = earlier index } ready for Model.SaveImported.
+-- { template, requires = earlier index, section = name } ready for Model.SaveImported.
 function Serializer.Import(text)
     local decoded, err = Serializer.Decode(text)
     if not decoded then return nil, err end
@@ -199,7 +246,8 @@ function Serializer.Import(text)
         local clean, validateErr = ns.Model.ValidateTemplate(decoded)
         if not clean then return nil, validateErr end
         clean.requires = nil
-        return { { template = clean } }
+        clean.section = nil
+        return { { template = clean, section = readSectionName(decoded.sectionName) } }
     end
     if #decoded.chain == 0 or #decoded.chain > 50 then return nil, "ERR_IMPORT_CORRUPT" end
     local entries = {}
@@ -207,9 +255,14 @@ function Serializer.Import(text)
         local clean, validateErr = ns.Model.ValidateTemplate(type(entry) == "table" and entry.template)
         if not clean then return nil, validateErr end
         clean.requires = nil
+        clean.section = nil
         -- Only links to an earlier entry are allowed, so imports can't form loops.
         local req = type(entry.requires) == "number" and entry.requires
-        entries[i] = { template = clean, requires = req and req >= 1 and req < i and math.floor(req) == req and req or nil }
+        entries[i] = {
+            template = clean,
+            requires = req and req >= 1 and req < i and math.floor(req) == req and req or nil,
+            section = readSectionName(entry.section),
+        }
     end
     return entries
 end

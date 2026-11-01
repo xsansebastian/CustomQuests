@@ -156,6 +156,45 @@ function UI.CreateWindow(name, width, height, title)
     return f
 end
 
+-- Lets the player drag the bottom-right corner of a CreateWindow window to
+-- resize it. The size is remembered per window name in the account data.
+-- onResize(width, height) re-lays out whatever doesn't follow its anchors; it
+-- runs once now and again on every size change.
+function UI.MakeResizable(f, minW, minH, maxW, maxH, onResize)
+    local name = f:GetName()
+    f:SetResizable(true)
+    if f.SetResizeBounds then
+        f:SetResizeBounds(minW, minH, maxW, maxH)
+    else
+        f:SetMinResize(minW, minH)
+        f:SetMaxResize(maxW, maxH)
+    end
+    local saved = name and ns.Model.account and ns.Model.account.windowSizes[name]
+    if type(saved) == "table" and tonumber(saved.w) and tonumber(saved.h) then
+        f:SetSize(math.min(maxW, math.max(minW, saved.w)), math.min(maxH, math.max(minH, saved.h)))
+    end
+
+    local grip = CreateFrame("Button", nil, f)
+    grip:SetSize(16, 16)
+    grip:SetPoint("BOTTOMRIGHT", -4, 4)
+    grip:SetFrameLevel(f:GetFrameLevel() + 20)
+    grip:SetNormalTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Up")
+    grip:SetHighlightTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Highlight")
+    grip:SetPushedTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Down")
+    grip:SetScript("OnMouseDown", function() f:StartSizing("BOTTOMRIGHT") end)
+    grip:SetScript("OnMouseUp", function()
+        f:StopMovingOrSizing()
+        if name and ns.Model.account then
+            ns.Model.account.windowSizes[name] = { w = math.floor(f:GetWidth() + 0.5), h = math.floor(f:GetHeight() + 0.5) }
+        end
+    end)
+    if onResize then
+        f:SetScript("OnSizeChanged", function(_, w, h) onResize(w, h) end)
+        onResize(f:GetWidth(), f:GetHeight())
+    end
+    return grip
+end
+
 function UI.CreateButton(parent, text, width, onClick)
     local b = CreateFrame("Button", nil, parent, "UIPanelButtonTemplate")
     b:SetSize(width or 100, 22)
@@ -203,6 +242,7 @@ function UI.CreateTextArea(parent, width, height)
     edit:SetScript("OnEscapePressed", edit.ClearFocus)
     scroll:SetScrollChild(edit)
     holder:SetScript("OnMouseDown", function() edit:SetFocus() end)
+    holder:SetScript("OnSizeChanged", function(_, w) edit:SetWidth(math.max(1, w - 36)) end)
     return holder, edit
 end
 
@@ -227,6 +267,80 @@ function UI.CreateDropdown(parent, width, getItems, getValue, onSelect)
     -- Re-reads getValue() to update the shown text after outside changes.
     function dd:Refresh() self:GenerateMenu() end
     return dd
+end
+
+-- Section header: the game's own "Quests" bar (dark band with a fold button on the
+-- right, as in the standard quest log and tracker), drawn with its atlases; where
+-- one is missing a plain bar with the classic +/- button is used.
+-- header:SetSection(name, collapsed) sets the text and the button state;
+-- header.onClick(mouseButton) runs for a click on the bar or on the button.
+local SECTION_BAR = "UI-QuestTracker-Secondary-Objective-Header"
+local SECTION_BUTTON = {
+    collapse = "ui-questtrackerbutton-secondary-collapse",
+    expand = "ui-questtrackerbutton-secondary-expand",
+}
+local SECTION_HIGHLIGHT = "ui-questtrackerbutton-yellow-highlight"
+
+function UI.HasAtlas(name)
+    return C_Texture and C_Texture.GetAtlasInfo and C_Texture.GetAtlasInfo(name) ~= nil
+end
+
+function UI.CreateSectionHeader(parent, height, styled)
+    local fancy = UI.HasAtlas(SECTION_BAR) and UI.HasAtlas(SECTION_HIGHLIGHT)
+    for _, atlas in pairs(SECTION_BUTTON) do
+        fancy = fancy and UI.HasAtlas(atlas) and UI.HasAtlas(atlas .. "-pressed")
+    end
+
+    local header = CreateFrame("Button", nil, parent)
+    header:SetHeight(height)
+    header:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+    header.background = header:CreateTexture(nil, "BACKGROUND")
+    header.background:SetAllPoints()
+    if fancy then
+        header.background:SetAtlas(SECTION_BAR)
+    else
+        header.background:SetColorTexture(1, 0.82, 0, 0.12)
+    end
+    header:SetHighlightTexture("Interface\\QuestFrame\\UI-QuestTitleHighlight", "ADD")
+
+    header.text = header:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    header.text:SetPoint("LEFT", 7, 0)
+    header.text:SetPoint("RIGHT", -24, 0)
+    header.text:SetWordWrap(false)
+    header.text:SetJustifyH("LEFT")
+    if fancy then
+        -- 14 pt with a shadow, as in the game's tracker.
+        local path = header.text:GetFont()
+        header.text:SetFont(path, 14, "")
+        header.text:SetShadowOffset(1, -1)
+        header.text:SetShadowColor(0, 0, 0, 1)
+    end
+    if styled then UI.Style.Text(header.text) end
+
+    header.button = CreateFrame("Button", nil, header)
+    header.button:SetSize(16, 16)
+    header.button:SetPoint("RIGHT", -4, 0)
+    header.button:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+    if fancy then header.button:SetHighlightAtlas(SECTION_HIGHLIGHT, "ADD") end
+
+    local function click(_, mouse)
+        if header.onClick then header.onClick(mouse) end
+    end
+    header:SetScript("OnClick", click)
+    header.button:SetScript("OnClick", click)
+
+    function header:SetSection(name, collapsed)
+        self.text:SetText(name)
+        local b = self.button
+        if fancy then
+            local atlas = collapsed and SECTION_BUTTON.expand or SECTION_BUTTON.collapse
+            b:SetNormalAtlas(atlas)
+            b:SetPushedAtlas(atlas .. "-pressed")
+        else
+            b:SetNormalTexture(collapsed and "Interface\\Buttons\\UI-PlusButton-Up" or "Interface\\Buttons\\UI-MinusButton-Up")
+        end
+    end
+    return header
 end
 
 -- Items for a fixed list of values with translated labels.

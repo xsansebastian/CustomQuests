@@ -9,6 +9,9 @@ Model.MAX_STAGES = 20
 Model.MAX_OBJECTIVES = 10
 Model.MAX_TEXT = 500
 Model.MAX_TITLE = 80
+Model.MAX_SECTIONS = 50
+Model.MAX_SECTION_NAME = 40
+Model.NO_SECTION = "_none" -- key for the quests that belong to no section
 
 Model.OBJECTIVE_TYPES = { "item", "kill", "boss", "zone", "subzone", "location", "level", "manual" }
 Model.KINDS = { "personal", "rp" }
@@ -103,6 +106,8 @@ function Model.ValidateTemplate(tpl)
         completionText = cleanString(tpl.completionText, Model.MAX_TEXT),
         requires = type(tpl.requires) == "string" and #tpl.requires <= 64
             and tpl.requires:match("^[%w%-]+$") and tpl.requires or nil,
+        section = type(tpl.section) == "string" and #tpl.section <= 64
+            and tpl.section:match("^[%w%-]+$") and tpl.section or nil,
         stages = {},
     }
 
@@ -144,6 +149,7 @@ Model.SCALE_MIN, Model.SCALE_MAX = 70, 160
 
 -- Defaults reproduce the look the tracker had before the options existed.
 local OPTION_DEFAULTS = {
+    title = "CustomQuests", -- the name on the tracker's banner
     font = "default",
     scale = 100,
     tracker = { bg = { 0, 0, 0 }, bgAlpha = 0, border = "none", borderColor = { 1, 0.82, 0 } },
@@ -162,6 +168,17 @@ local function cleanColor(color, default)
     return out
 end
 
+Model.MAX_TRACKER_TITLE = 30
+
+-- The tracker banner's name: pipes stripped, trimmed; empty means the default.
+function Model.CleanTrackerTitle(value)
+    if type(value) ~= "string" then return OPTION_DEFAULTS.title end
+    value = value:gsub("|", "")
+    value = value:match("^%s*(.-)%s*$")
+    if value == "" then return OPTION_DEFAULTS.title end
+    return value:sub(1, Model.MAX_TRACKER_TITLE)
+end
+
 function Model.DefaultOptions()
     return Util.DeepCopy(OPTION_DEFAULTS)
 end
@@ -174,6 +191,7 @@ function Model.CleanOptions(saved)
     local t = type(saved.tracker) == "table" and saved.tracker or {}
     local font = type(saved.font) == "string" and #saved.font > 0 and #saved.font <= 128 and saved.font
     return {
+        title = Model.CleanTrackerTitle(saved.title),
         font = font or OPTION_DEFAULTS.font,
         scale = validNumber(saved.scale) and clamp(math.floor(saved.scale + 0.5), Model.SCALE_MIN, Model.SCALE_MAX)
             or OPTION_DEFAULTS.scale,
@@ -203,11 +221,18 @@ function Model.InitDB(accountDB, charDB)
     accountDB.history = accountDB.history or {}
     accountDB.recentIcons = nil -- the icon picker is gone
     accountDB.chainCollapsed = type(accountDB.chainCollapsed) == "table" and accountDB.chainCollapsed or {}
+    accountDB.sectionCollapsed = type(accountDB.sectionCollapsed) == "table" and accountDB.sectionCollapsed or {}
+    accountDB.sections = Model.CleanSections(accountDB.sections)
     accountDB.minimap = accountDB.minimap or { angle = 225, hidden = false }
+    accountDB.windowSizes = type(accountDB.windowSizes) == "table" and accountDB.windowSizes or {}
     accountDB.options = Model.CleanOptions(accountDB.options)
     charDB.schema = charDB.schema or Model.SCHEMA
     charDB.active = charDB.active or {}
     charDB.tracked = charDB.tracked or {}
+    charDB.sectionCollapsed = type(charDB.sectionCollapsed) == "table" and charDB.sectionCollapsed or {}
+    for _, view in ipairs({ "log", "tracker" }) do
+        if type(charDB.sectionCollapsed[view]) ~= "table" then charDB.sectionCollapsed[view] = {} end
+    end
     charDB.trackerShown = charDB.trackerShown ~= false
     Model.account = accountDB
     Model.char = charDB
@@ -230,6 +255,7 @@ function Model.SaveTemplate(tpl, id, now)
             return nil, "ERR_CHAIN_CYCLE"
         end
     end
+    if clean.section and not Model.SectionByID(clean.section) then clean.section = nil end
     clean.createdAt = (Model.account.templates[id] and Model.account.templates[id].createdAt) or now
     Model.account.templates[id] = clean
     return id
@@ -277,13 +303,15 @@ function Model.GetChain(id)
     return ordered
 end
 
--- Saves imported templates; entry.requires is an index into entries.
+-- Saves imported templates; entry.requires is an index into entries and
+-- entry.section a section name, matched with an existing section or created.
 -- Returns the new ids in the same order.
 function Model.SaveImported(entries, now)
     local ids = {}
     for i, entry in ipairs(entries) do
         local tpl = Util.DeepCopy(entry.template)
         tpl.requires = entry.requires and ids[entry.requires] or nil
+        tpl.section = entry.section and Model.FindOrCreateSection(entry.section, now) or nil
         ids[i] = Model.SaveTemplate(tpl, nil, now)
     end
     return ids
@@ -362,15 +390,23 @@ end
 -- roots at depth 0, each follow-up one level below the quest it follows.
 -- collapsed[id] hides the follow-ups of that quest. Rows: { id, depth,
 -- hasChildren, collapsed, count } where count is the size of the whole subtree.
-function Model.TemplateTree(collapsed)
+-- With belongs(id), only the templates it accepts are listed: a quest whose
+-- prerequisite is left out starts a tree of its own.
+function Model.TemplateTree(collapsed, belongs)
     collapsed = collapsed or {}
-    local entries = Model.ListTemplates()
+    local entries = {}
+    for _, entry in ipairs(Model.ListTemplates()) do
+        if not belongs or belongs(entry.id) then entries[#entries + 1] = entry end
+    end
     local order = {}
     for i, entry in ipairs(entries) do order[entry.id] = i end
 
     local function children(id)
-        local list = Model.GetFollowUps(id)
-        table.sort(list, function(a, b) return (order[a] or 0) < (order[b] or 0) end)
+        local list = {}
+        for _, nextID in ipairs(Model.GetFollowUps(id)) do
+            if order[nextID] then list[#list + 1] = nextID end
+        end
+        table.sort(list, function(a, b) return order[a] < order[b] end)
         return list
     end
 
@@ -397,7 +433,7 @@ function Model.TemplateTree(collapsed)
     local roots = {}
     for _, entry in ipairs(entries) do
         local requires = entry.template.requires
-        if not (requires and Model.account.templates[requires]) then roots[#roots + 1] = entry.id end
+        if not (requires and order[requires]) then roots[#roots + 1] = entry.id end
     end
     -- A broken loop has no root: its members still show up, as roots.
     for _, id in ipairs(roots) do size(id, 0) end
@@ -410,6 +446,216 @@ function Model.TemplateTree(collapsed)
         row.count = size(row.id, 0)
     end
     return rows
+end
+
+-- Sections ---------------------------------------------------------------------
+-- A section is a named group of quests the player makes up; the quest log and the
+-- tracker show it as a header. Each template belongs to at most one, on its own:
+-- the quests of a chain can sit in different sections.
+
+function Model.CleanSectionName(name)
+    if type(name) ~= "string" then return nil end
+    name = name:gsub("|", ""):match("^%s*(.-)%s*$")
+    if name == "" then return nil end
+    if #name > Model.MAX_SECTION_NAME then name = name:sub(1, Model.MAX_SECTION_NAME) end
+    return name
+end
+
+-- A clean list from whatever was saved: bad entries and repeated ids dropped.
+function Model.CleanSections(saved)
+    local list, seen = {}, {}
+    if type(saved) ~= "table" then return list end
+    for _, entry in ipairs(saved) do
+        local id = type(entry) == "table" and type(entry.id) == "string" and #entry.id <= 64
+            and entry.id:match("^[%w%-]+$") and entry.id
+        local name = type(entry) == "table" and Model.CleanSectionName(entry.name)
+        if id and name and not seen[id] and #list < Model.MAX_SECTIONS then
+            seen[id] = true
+            list[#list + 1] = { id = id, name = name }
+        end
+    end
+    return list
+end
+
+function Model.ListSections()
+    return Model.account.sections
+end
+
+function Model.SectionByID(id)
+    for _, section in ipairs(Model.account.sections) do
+        if section.id == id then return section end
+    end
+end
+
+function Model.SectionByName(name)
+    local wanted = Model.CleanSectionName(name)
+    if not wanted then return nil end
+    wanted = wanted:lower()
+    for _, section in ipairs(Model.account.sections) do
+        if section.name:lower() == wanted then return section end
+    end
+end
+
+-- Returns the new id, or nil and an error key.
+function Model.CreateSection(name, now)
+    local clean = Model.CleanSectionName(name)
+    if not clean then return nil, "ERR_SECTION_NAME" end
+    if Model.SectionByName(clean) then return nil, "ERR_SECTION_EXISTS" end
+    if #Model.account.sections >= Model.MAX_SECTIONS then return nil, "ERR_TOO_MANY_SECTIONS" end
+    local id = Model.NewID("s", now)
+    Model.account.sections[#Model.account.sections + 1] = { id = id, name = clean }
+    return id
+end
+
+-- The id of the section called name, making it if it doesn't exist; nil when
+-- the name is unusable or there is no room left.
+function Model.FindOrCreateSection(name, now)
+    local found = Model.SectionByName(name)
+    if found then return found.id end
+    return (Model.CreateSection(name, now))
+end
+
+function Model.RenameSection(id, name)
+    local section = Model.SectionByID(id)
+    if not section then return nil, "ERR_SECTION_NAME" end
+    local clean = Model.CleanSectionName(name)
+    if not clean then return nil, "ERR_SECTION_NAME" end
+    local other = Model.SectionByName(clean)
+    if other and other ~= section then return nil, "ERR_SECTION_EXISTS" end
+    section.name = clean
+    return true
+end
+
+-- Its quests are kept and go back to having no section.
+function Model.DeleteSection(id)
+    local list = Model.account.sections
+    for i, section in ipairs(list) do
+        if section.id == id then table.remove(list, i) break end
+    end
+    for _, tpl in pairs(Model.account.templates) do
+        if tpl.section == id then tpl.section = nil end
+    end
+    Model.account.sectionCollapsed[id] = nil
+    for _, view in pairs(Model.char.sectionCollapsed) do view[id] = nil end
+end
+
+-- direction: -1 up, 1 down. Returns false at the ends.
+function Model.MoveSection(id, direction)
+    local list = Model.account.sections
+    for i, section in ipairs(list) do
+        if section.id == id then
+            local j = i + direction
+            if j < 1 or j > #list then return false end
+            list[i], list[j] = list[j], list[i]
+            return true
+        end
+    end
+    return false
+end
+
+-- Puts the templates in a section (nil: no section). A chain moves whole: every
+-- quest linked to one of them goes along. Returns how many changed.
+function Model.SetSection(templateIDs, sectionID)
+    if sectionID and not Model.SectionByID(sectionID) then return 0 end
+    local seen, all = {}, {}
+    for _, id in ipairs(templateIDs) do
+        if Model.account.templates[id] then
+            for _, member in ipairs(Model.GetChain(id)) do
+                if not seen[member] then
+                    seen[member] = true
+                    all[#all + 1] = member
+                end
+            end
+        end
+    end
+    local changed = 0
+    for _, id in ipairs(all) do
+        local tpl = Model.account.templates[id]
+        if tpl.section ~= sectionID then
+            tpl.section = sectionID
+            changed = changed + 1
+        end
+    end
+    return changed
+end
+
+-- The ids of the templates in a section, sorted by title.
+function Model.SectionMembers(sectionID)
+    local ids = {}
+    for _, entry in ipairs(Model.ListTemplates()) do
+        if Model.SectionOf(entry.template) == sectionID then ids[#ids + 1] = entry.id end
+    end
+    return ids
+end
+
+-- The section id a template is in, or nil.
+function Model.SectionOf(tpl)
+    return tpl and tpl.section and Model.SectionByID(tpl.section) and tpl.section or nil
+end
+
+-- Groups items under section headers, keeping their order inside each group.
+-- getSection(item) gives a section id or nil. Returns a flat list of
+-- { header = { id, name }, collapsed, count } and { item = item } (items of a
+-- collapsed group are left out), sections in the player's order and the quests
+-- with no section last. Without any section it is just the items, no headers.
+-- With showEmpty the sections nobody is in still get a header.
+function Model.GroupBySection(items, getSection, collapsed, showEmpty)
+    collapsed = collapsed or {}
+    local sections = Model.account.sections
+    local out = {}
+    if #sections == 0 then
+        for _, item in ipairs(items) do out[#out + 1] = { item = item } end
+        return out
+    end
+    local groups, loose = {}, {}
+    for _, item in ipairs(items) do
+        local id = getSection(item)
+        if id and Model.SectionByID(id) then
+            groups[id] = groups[id] or {}
+            table.insert(groups[id], item)
+        else
+            loose[#loose + 1] = item
+        end
+    end
+    local function emit(header, list)
+        if #list == 0 and not (showEmpty and header.id ~= Model.NO_SECTION) then return end
+        local folded = collapsed[header.id] and true or false
+        out[#out + 1] = { header = header, collapsed = folded, count = #list }
+        if not folded then
+            for _, item in ipairs(list) do out[#out + 1] = { item = item } end
+        end
+    end
+    for _, section in ipairs(sections) do emit(section, groups[section.id] or {}) end
+    emit({ id = Model.NO_SECTION }, loose)
+    return out
+end
+
+-- The Templates list with section headers: header entries as above, followed
+-- by that section's TemplateTree rows ({ row = row }). Without sections it is
+-- the plain tree, wrapped the same way. Empty sections keep their header.
+function Model.SectionedTree(sectionCollapsed, chainCollapsed)
+    sectionCollapsed = sectionCollapsed or {}
+    local out = {}
+    if #Model.account.sections == 0 then
+        for _, row in ipairs(Model.TemplateTree(chainCollapsed)) do out[#out + 1] = { row = row } end
+        return out
+    end
+    local function add(header, belongs)
+        local rows = Model.TemplateTree(chainCollapsed, belongs)
+        local total = 0
+        for _, row in ipairs(rows) do if row.depth == 0 then total = total + row.count end end
+        if total == 0 and header.id == Model.NO_SECTION then return end
+        local folded = sectionCollapsed[header.id] and true or false
+        out[#out + 1] = { header = header, collapsed = folded, count = total }
+        if not folded then
+            for _, row in ipairs(rows) do out[#out + 1] = { row = row } end
+        end
+    end
+    for _, section in ipairs(Model.account.sections) do
+        add(section, function(id) return Model.SectionOf(Model.account.templates[id]) == section.id end)
+    end
+    add({ id = Model.NO_SECTION }, function(id) return Model.SectionOf(Model.account.templates[id]) == nil end)
+    return out
 end
 
 function Model.NewEmptyTemplate()

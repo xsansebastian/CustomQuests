@@ -60,6 +60,76 @@ function Dialogs.ConfirmDelete(ids, onDone)
     end)
 end
 
+-- Sections -------------------------------------------------------------------
+
+-- The edit box of a popup: a method in recent clients, a field in older ones.
+local function popupEditBox(dialog)
+    return dialog.GetEditBox and dialog:GetEditBox() or dialog.editBox
+end
+
+-- data = { initial = string, onAccept = function(name) }.
+StaticPopupDialogs["CUSTOMQUESTS_SECTION_NAME"] = {
+    text = "%s",
+    button1 = ACCEPT,
+    button2 = CANCEL,
+    hasEditBox = 1,
+    maxLetters = Model.MAX_SECTION_NAME,
+    OnShow = function(dialog, data)
+        local edit = popupEditBox(dialog)
+        edit:SetText(data and data.initial or "")
+        edit:HighlightText()
+        edit:SetFocus()
+    end,
+    OnAccept = function(dialog, data)
+        data.onAccept(popupEditBox(dialog):GetText())
+    end,
+    EditBoxOnEnterPressed = function(edit, data)
+        local dialog = edit:GetParent()
+        data = data or dialog.data
+        -- Read the text first: hiding the popup clears the edit box.
+        local text = edit:GetText()
+        dialog:Hide()
+        if data then data.onAccept(text) end
+    end,
+    EditBoxOnEscapePressed = function(edit) edit:GetParent():Hide() end,
+    timeout = 0,
+    whileDead = true,
+    hideOnEscape = true,
+    preferredIndex = 3,
+}
+
+function Dialogs.PromptSectionName(initial, onAccept)
+    StaticPopup_Show("CUSTOMQUESTS_SECTION_NAME", L["SECTION_NAME_PROMPT"], nil, { initial = initial, onAccept = onAccept })
+end
+
+-- Asks for a name and makes the section; onCreated(id) runs when it exists.
+function Dialogs.NewSection(onCreated)
+    Dialogs.PromptSectionName("", function(name)
+        local id, err = Model.CreateSection(name, ns.api.Now())
+        if not id then ns.api.Print(UI.ErrorText(err)) return end
+        if onCreated then onCreated(id) end
+    end)
+end
+
+function Dialogs.RenameSection(sectionID, onDone)
+    local section = Model.SectionByID(sectionID)
+    if not section then return end
+    Dialogs.PromptSectionName(section.name, function(name)
+        local ok, err = Model.RenameSection(sectionID, name)
+        if not ok then ns.api.Print(UI.ErrorText(err)) return end
+        if onDone then onDone() end
+    end)
+end
+
+function Dialogs.ConfirmDeleteSection(sectionID, onDone)
+    local section = Model.SectionByID(sectionID)
+    if not section then return end
+    Dialogs.Confirm(L["CONFIRM_DELETE_SECTION"]:format(UI.QuestText(section.name)), function()
+        Model.DeleteSection(sectionID)
+        if onDone then onDone() end
+    end)
+end
+
 -- Import / export ------------------------------------------------------------
 
 local window, edit, actionButton, status
@@ -68,7 +138,8 @@ local function create()
     window = UI.CreateWindow("CustomQuestsTransfer", 440, 280, "")
     local area
     area, edit = UI.CreateTextArea(window, 410, 180)
-    area:SetPoint("TOP", 0, -32)
+    area:SetPoint("TOPLEFT", 15, -32)
+    area:SetPoint("BOTTOMRIGHT", -15, 44)
     edit:SetMaxLetters(Serializer.MAX_LENGTH)
 
     status = UI.CreateLabel(window, "", "GameFontHighlightSmall")
@@ -79,6 +150,7 @@ local function create()
     actionButton:SetPoint("BOTTOMRIGHT", -16, 12)
     UI.CreateButton(window, CLOSE, 80, function() window:Hide() end)
         :SetPoint("RIGHT", actionButton, "LEFT", -6, 0)
+    UI.MakeResizable(window, 360, 220, 900, 700)
 end
 
 -- Exports the template, or its whole chain when it belongs to one.
@@ -90,6 +162,21 @@ function Dialogs.ShowExport(templateID)
     status:SetText(count > 1 and L["EXPORT_CHAIN_HINT"]:format(count) or L["EXPORT_HINT"])
     actionButton:Hide()
     edit:SetText(text or "")
+    window:Show()
+    edit:SetFocus()
+    edit:HighlightText()
+end
+
+-- Exports every quest of a section.
+function Dialogs.ShowSectionExport(sectionID)
+    local section = Model.SectionByID(sectionID)
+    local text = section and Serializer.ExportSection(sectionID)
+    if not text then ns.api.Print(UI.ErrorText("ERR_SECTION_EMPTY")) return end
+    if not window then create() end
+    window.TitleText:SetText(L["EXPORT_TITLE"])
+    status:SetText(L["SECTION_EXPORT_HINT"]:format(UI.QuestText(section.name), #Model.SectionMembers(sectionID)))
+    actionButton:Hide()
+    edit:SetText(text)
     window:Show()
     edit:SetFocus()
     edit:HighlightText()

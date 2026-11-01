@@ -352,6 +352,11 @@ test("Appearance options fill defaults and reject bad values", function()
     eq(clean.tracker.borderColor[3], 0.75)
     eq(Model.CleanOptions({ font = "Fira Sans" }).font, "Fira Sans", "SharedMedia names are kept")
     eq(Model.CleanOptions("junk").scale, 100, "non-table")
+    eq(defaults.title, "CustomQuests", "banner name defaults to the addon name")
+    eq(Model.CleanOptions({ title = "  Mi |cffff0000diario  " }).title, "Mi cffff0000diario", "trimmed, no pipes")
+    eq(Model.CleanOptions({ title = "   " }).title, "CustomQuests", "empty goes back to the default")
+    eq(Model.CleanOptions({ title = 5 }).title, "CustomQuests", "non-string")
+    eq(#Model.CleanOptions({ title = ("x"):rep(100) }).title, Model.MAX_TRACKER_TITLE, "length capped")
     eq(Model.account.options.scale, 100, "InitDB stores clean options")
 end)
 
@@ -544,6 +549,178 @@ test("DeleteTemplates of parent and child together leaves the rest hanging in pl
     eq(Model.GetTemplate(t.C).requires, nil)
     eq(Model.GetTemplate(t.D).requires, nil)
     eq(Model.GetTemplate(t.E).requires, t.C)
+end)
+
+-- Sections -----------------------------------------------------------------------
+
+local function quest(title, extra)
+    local tpl = template({ { type = "manual", text = "x" } }, { title = title })
+    for k, v in pairs(extra or {}) do tpl[k] = v end
+    return assert(Model.SaveTemplate(tpl, nil, fake.now))
+end
+
+local function headerShape(list, label)
+    local out = {}
+    for _, e in ipairs(list) do
+        if e.header then
+            out[#out + 1] = "[" .. (e.header.name or "none") .. ":" .. e.count .. (e.collapsed and "-" or "") .. "]"
+        else
+            out[#out + 1] = label(e)
+        end
+    end
+    return table.concat(out, ",")
+end
+
+test("Sections: create, rename and reject bad or repeated names", function()
+    local a = assert(Model.CreateSection("  Lost Isles ", fake.now))
+    eq(Model.SectionByID(a).name, "Lost Isles", "name is trimmed")
+    eq(select(2, Model.CreateSection("lost isles", fake.now)), "ERR_SECTION_EXISTS", "case-insensitive")
+    eq(select(2, Model.CreateSection("   ", fake.now)), "ERR_SECTION_NAME")
+    local b = assert(Model.CreateSection("A|cffff0000B", fake.now))
+    eq(Model.SectionByID(b).name, "Acffff0000B", "pipes are stripped")
+    assert(Model.RenameSection(a, "Isles"))
+    eq(Model.SectionByID(a).name, "Isles")
+    eq(select(2, Model.RenameSection(a, "acffff0000b")), "ERR_SECTION_EXISTS")
+    assert(Model.RenameSection(a, "ISLES"), "renaming to itself is fine")
+end)
+
+test("Sections: a template keeps its section and an unknown id reads as none", function()
+    local s = assert(Model.CreateSection("S", fake.now))
+    local id = quest("Q", { section = s })
+    eq(Model.GetTemplate(id).section, s)
+    local stray = quest("Stray", { section = "s-does-not-exist" })
+    eq(Model.GetTemplate(stray).section, nil)
+end)
+
+test("Sections: deleting one keeps its quests, now without section", function()
+    local s = assert(Model.CreateSection("S", fake.now))
+    local id = quest("Q", { section = s })
+    Model.account.sectionCollapsed[s] = true
+    Model.char.sectionCollapsed.tracker[s] = true
+    Model.DeleteSection(s)
+    eq(#Model.ListSections(), 0)
+    eq(Model.GetTemplate(id).section, nil)
+    eq(Model.account.sectionCollapsed[s], nil)
+    eq(Model.char.sectionCollapsed.tracker[s], nil)
+end)
+
+test("Sections: move up/down and SetSection", function()
+    local a, b = Model.CreateSection("A", fake.now), Model.CreateSection("B", fake.now)
+    eq(Model.MoveSection(a, -1), false)
+    eq(Model.MoveSection(a, 1), true)
+    eq(Model.ListSections()[1].id, b)
+    local q1, q2 = quest("Q1"), quest("Q2")
+    eq(Model.SetSection({ q1, q2 }, a), 2)
+    eq(Model.SetSection({ q1, q2 }, a), 0, "nothing changes the second time")
+    eq(Model.SetSection({ q1 }, "nope"), 0)
+    eq(Model.SetSection({ q1 }, nil), 1)
+end)
+
+test("Sections: InitDB cleans broken saved data", function()
+    local db = { sections = { { id = "a", name = "Ok" }, { id = "a", name = "Dup" }, { id = "b c", name = "X" },
+        { id = "d", name = 5 }, "junk" } }
+    Model.InitDB(db, {})
+    eq(#db.sections, 1)
+    eq(db.sections[1].name, "Ok")
+    Model.InitDB({ sections = "bad" }, {})
+    eq(#Model.account.sections, 0)
+end)
+
+test("Sections: moving a quest moves its whole chain", function()
+    local s = assert(Model.CreateSection("S", fake.now))
+    local ids = chainOf(3)
+    local other = quest("Other")
+    eq(Model.SetSection({ ids[2] }, s), 3, "the middle quest brings the whole chain")
+    for _, id in ipairs(ids) do eq(Model.GetTemplate(id).section, s) end
+    eq(Model.GetTemplate(other).section, nil)
+    eq(Model.SetSection({ ids[3] }, nil), 3, "and back out again")
+    eq(Model.GetTemplate(ids[1]).section, nil)
+end)
+
+test("Sections: a chain split by older data still shows up in the tree", function()
+    local s = assert(Model.CreateSection("S", fake.now))
+    local ids = chainOf(3)
+    quest("Loose")
+    Model.GetTemplate(ids[1]).section = s
+    Model.GetTemplate(ids[3]).section = s
+    local function label(e) return Model.GetTemplate(e.row.id).title .. "@" .. e.row.depth end
+    eq(headerShape(Model.SectionedTree({}, {}), label), "[S:2],Part 1@0,Part 3@0,[none:2],Loose@0,Part 2@0",
+        "Part 3 starts its own tree in S because Part 2 isn't there")
+    eq(headerShape(Model.SectionedTree({ [s] = true }, {}), label), "[S:2-],[none:2],Loose@0,Part 2@0")
+    Model.DeleteSection(s)
+    local plain = Model.SectionedTree({}, {})
+    eq(#plain, 4)
+    eq(plain[1].header, nil, "no sections: plain tree, no headers")
+end)
+
+test("Sections: an empty section keeps its header in the Templates tree", function()
+    local s = assert(Model.CreateSection("Empty", fake.now))
+    quest("Loose")
+    local tree = Model.SectionedTree({}, {})
+    eq(tree[1].header.id, s)
+    eq(tree[1].count, 0)
+end)
+
+test("Sections: GroupBySection orders by section, loose last, hides folded and empty ones", function()
+    local a, b = Model.CreateSection("A", fake.now), Model.CreateSection("B", fake.now)
+    local items = { { n = 1, s = b }, { n = 2 }, { n = 3, s = a }, { n = 4, s = b } }
+    local function label(e) return tostring(e.item.n) end
+    local get = function(item) return item.s end
+    eq(headerShape(Model.GroupBySection(items, get, {}), label), "[A:1],3,[B:2],1,4,[none:1],2")
+    eq(headerShape(Model.GroupBySection(items, get, { [b] = true }), label), "[A:1],3,[B:2-],[none:1],2")
+    eq(headerShape(Model.GroupBySection({ { n = 3, s = a } }, get, {}), label), "[A:1],3", "empty groups are hidden")
+    eq(headerShape(Model.GroupBySection({ { n = 3, s = a } }, get, {}, true), label), "[A:1],3,[B:0]", "unless asked for")
+    Model.DeleteSection(a)
+    Model.DeleteSection(b)
+    eq(headerShape(Model.GroupBySection(items, get, {}), label), "1,2,3,4", "no sections, no headers")
+end)
+
+test("Sections: export carries the section by name and import matches or creates it", function()
+    local s = assert(Model.CreateSection("Lost Isles", fake.now))
+    local ids = chainOf(2)
+    Model.SetSection({ ids[1] }, s)
+    local text = Serializer.ExportChain(ids[1])
+    local single = Serializer.ExportTemplate(Model.GetTemplate(ids[1]))
+    Model.InitDB({}, {})
+    local entries = assert(Serializer.Import(text))
+    eq(entries[1].section, "Lost Isles")
+    eq(entries[2].section, "Lost Isles", "the whole chain moved with it")
+    eq(entries[1].template.section, nil, "ids never travel")
+    local newIDs = Model.SaveImported(entries, fake.now)
+    eq(#Model.ListSections(), 1)
+    local sid = Model.GetTemplate(newIDs[1]).section
+    eq(Model.SectionByID(sid).name, "Lost Isles")
+    eq(Model.GetTemplate(newIDs[2]).section, sid)
+    -- A second import reuses the section instead of duplicating it.
+    local again = assert(Serializer.Import(single))
+    eq(again[1].section, "Lost Isles")
+    local id2 = Model.SaveImported(again, fake.now)[1]
+    eq(#Model.ListSections(), 1)
+    eq(Model.GetTemplate(id2).section, sid)
+end)
+
+test("Sections: exporting a section carries its quests and the links among them", function()
+    local s = assert(Model.CreateSection("Pack", fake.now))
+    local ids = chainOf(3)
+    local other = quest("Other")
+    Model.SetSection({ ids[1], ids[2], other }, s)
+    local entries = assert(Serializer.Import(assert(Serializer.ExportSection(s))))
+    eq(#entries, 4)
+    local titles = {}
+    for i, e in ipairs(entries) do
+        titles[#titles + 1] = e.template.title
+        eq(e.section, "Pack")
+        if e.requires then eq(e.requires < i, true) end
+    end
+    eq(table.concat(titles, ","), "Other,Part 1,Part 2,Part 3")
+    eq(Serializer.ExportSection("nothing"), nil)
+end)
+
+test("Sections: a hostile section name in an import is cleaned", function()
+    local payload = Serializer.Encode({ title = "T", stages = { { objectives = { { type = "manual", text = "x" } } } },
+        sectionName = "|cffff0000Evil|r" })
+    local entries = assert(Serializer.Import(payload))
+    eq(entries[1].section, "cffff0000Evilr")
 end)
 
 print(("%d passed, %d failed"):format(passed, failed))

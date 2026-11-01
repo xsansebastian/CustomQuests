@@ -2,7 +2,13 @@
 
 ## Unreleased
 
-- Templates list: every row has a checkbox, and the new Delete (N) button next to Import deletes the ticked templates at once. When a deleted quest has quests after it in a chain you choose between deleting the whole branch or only the selected ones (the rest stay linked to the quest before). The Delete button in the detail asks the same.
+- Options: the name on the tracker's banner can be changed (default CustomQuests); leaving it empty restores the default.
+- Tracker: hold Shift and a grip appears in its bottom-right corner; drag it to change the tracker's width (200 to 520) and height. When the quests don't fit, scroll with the mouse wheel. Right-click the grip to go back to a height that fits the quests. The size is remembered per character.
+- Quest sections: group templates under sections you make up (a "Lost Isles" section, a "Daily routine" one...). In Templates, Edit list > "Move to" moves the ticked quests into a section or makes a new one; right-click a section header to rename, move, export or delete it; the quest editor has a Section field. The Journal (Active and Templates) and the tracker show the headers like the game's own "Quests" bar, with a fold button; folds are remembered per character. A chain always moves as a whole (moving one of its quests moves them all), and quests without a section go last under "Other quests". Deleting a section keeps its quests.
+- Export/import carries the section by name: importing creates it, or reuses one with the same name. A section can also be exported whole.
+- The Journal, the quest editor, the turn-in window and the import/export window can be resized by dragging their bottom-right corner; each remembers its size. In the Journal you can also drag the divider to make the quest list wider or narrower. In the editor the extra height goes to the description and the preview.
+- Journal: more space between a quest's title and the line under it. Tracker: quest icons are as big as the game's own tracker icons.
+- Templates list: the new Edit list button under the tree shows a checkbox on every row, and Delete (N) removes the ticked templates at once. When a deleted quest has quests after it in a chain you choose between deleting the whole branch or only the selected ones (the rest stay linked to the quest before). The Delete button in the detail asks the same.
 - Chains are easier to build: in Templates, "Add next quest" creates the next quest already linked after the selected one. The editor field now reads "Unlocks after completing", the list of quests is a tree, and a line under it shows the whole chain path.
 - Only the first quest of a chain can be accepted by hand. The others start on their own when the previous one is turned in; their Accept button is off and the list says so.
 - A quest that belongs to a chain stays out of the tracker until the one before it has been turned in.
