@@ -59,6 +59,7 @@ function handlers.PLAYER_LOGIN()
     if ns.Minimap then ns.Minimap.Init() end
     if ns.Options then ns.Options.Init() end
     ns.InitSharing()
+    if ns.ItemTooltip then ns.ItemTooltip.Init() end
     ns.RefreshAll()
     ns.TrackProgress() -- records the starting point so login doesn't announce old progress
     C_Timer.NewTicker(60, function()
@@ -320,6 +321,7 @@ function commands.debug()
         local q = entry.quest
         ns.api.Print(("  %s [%s] stage %d resetAt=%s"):format(Util.SafeText(q.template.title), q.state, q.stage, tostring(q.resetAt)))
     end
+    if ns.ItemTooltip then ns.ItemTooltip.Debug() end
 end
 
 -- Forces every repeatable completed quest to reset now (testing).

@@ -38,6 +38,19 @@ function api.GetItemCount(itemID)
     return (C_Item and C_Item.GetItemCount or GetItemCount)(itemID, true, false, true, true) or 0
 end
 
+-- Calls fn(tooltip, itemID) after the game fills an item tooltip. Does nothing
+-- on a client without tooltip post-calls.
+function api.HookItemTooltip(fn)
+    if not (TooltipDataProcessor and TooltipDataProcessor.AddTooltipPostCall and Enum and Enum.TooltipDataType) then
+        return false
+    end
+    TooltipDataProcessor.AddTooltipPostCall(Enum.TooltipDataType.Item, function(tooltip, data)
+        local id = data and data.id
+        if type(id) == "number" and not api.IsSecret(id) then fn(tooltip, id) end
+    end)
+    return true
+end
+
 function api.GetItemName(itemID)
     if C_Item and C_Item.GetItemNameByID then return C_Item.GetItemNameByID(itemID) end
     return (GetItemInfo(itemID))

@@ -1708,5 +1708,23 @@ test("Every file in the TOC is plain Lua 5.1 (what the game parses)", function()
     eq(count > 10, true, "the TOC lists the sources")
 end)
 
+test("FindItem lists the active quests that ask for an item, with their progress", function()
+    local a = assert(Model.SaveTemplate(template({ { type = "item", itemID = 4242, count = 5 } }, { title = "Herbs" }), nil, fake.now))
+    local b = assert(Model.SaveTemplate(template({ { type = "item", itemID = 4242, count = 2 }, { type = "kill", npcID = 1, count = 1 } }, { title = "More herbs" }), nil, fake.now))
+    local other = assert(Model.SaveTemplate(template({ { type = "item", itemID = 9, count = 1 } }, { title = "Other" }), nil, fake.now))
+    for _, id in ipairs({ a, b, other }) do assert(Lifecycle.Accept(id)) end
+    fake.items[4242] = 3
+    Objectives.UpdateItems(Model.char.active)
+    local found = Objectives.FindItem(Model.char.active, 4242)
+    eq(#found, 2)
+    local goals = {}
+    for _, hit in ipairs(found) do
+        goals[hit.quest.template.title] = hit.quest.progress[hit.index] .. "/" .. Objectives.Goal(hit.obj)
+    end
+    eq(goals["Herbs"], "3/5")
+    eq(goals["More herbs"], "2/2")
+    eq(#Objectives.FindItem(Model.char.active, 777), 0)
+end)
+
 print(("%d passed, %d failed"):format(passed, failed))
 if failed > 0 then os.exit(1) end
