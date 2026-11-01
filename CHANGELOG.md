@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.7.0
 
 - Options: the name on the tracker's banner can be changed (default CustomQuests); leaving it empty restores the default.
 - Tracker: hold Shift and a grip appears in its bottom-right corner; drag it to change the tracker's width (200 to 520) and height. When the quests don't fit, scroll with the mouse wheel. Right-click the grip to go back to a height that fits the quests. The size is remembered per character.
