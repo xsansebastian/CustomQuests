@@ -18,7 +18,7 @@ L["TURNIN_COMPLETE_SHORT"] = "Abschließen"
 L["TURNIN_DEFAULT"] = "Du hast alle Ziele erreicht."
 L["F_COMPLETION"] = "Text bei Questabschluss"
 L["STAGE_ADVANCED"] = "%s: Abschnitt %d/%d"
-L["TRACKER_TOOLTIP"] = "Umschalt+Ziehen zum Verschieben. Linksklick öffnet das Questbuch. Rechtsklick auf die Kopfzeile klappt alles ein, auf einen Questtitel klappt diese Quest ein oder aus."
+L["TRACKER_TOOLTIP"] = "Umschalt+Ziehen zum Verschieben. Linksklick auf die Kopfzeile öffnet das Questbuch, auf einen Questtitel öffnet er diese Quest im Questbuch. Rechtsklick auf die Kopfzeile klappt alles ein, auf einen Questtitel klappt diese Quest ein oder aus."
 
 L["MM_JOURNAL"] = "Linksklick: Questbuch öffnen"
 L["MM_TRACKER"] = "Rechtsklick: Verfolgung ein-/ausblenden"

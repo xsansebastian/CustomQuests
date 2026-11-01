@@ -18,7 +18,7 @@ L["TURNIN_COMPLETE_SHORT"] = "Terminer"
 L["TURNIN_DEFAULT"] = "Vous avez rempli tous les objectifs."
 L["F_COMPLETION"] = "Texte de fin de quête"
 L["STAGE_ADVANCED"] = "%s : étape %d/%d"
-L["TRACKER_TOOLTIP"] = "Maj+glisser pour déplacer. Clic gauche ouvre le journal. Clic droit sur l'en-tête réduit tout, sur le titre d'une quête replie ou déplie cette quête."
+L["TRACKER_TOOLTIP"] = "Maj+glisser pour déplacer. Clic gauche sur l'en-tête ouvre le journal, sur le titre d'une quête l'ouvre dans le journal. Clic droit sur l'en-tête réduit tout, sur le titre d'une quête replie ou déplie cette quête."
 
 L["MM_JOURNAL"] = "Clic gauche : ouvrir le journal"
 L["MM_TRACKER"] = "Clic droit : afficher/masquer le suivi"
