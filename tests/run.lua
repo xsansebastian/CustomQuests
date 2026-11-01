@@ -1599,5 +1599,21 @@ test("Search: words match title, section name and stage text; a filter hides emp
     eq(#Model.SectionedTree({}, {}, function(id) return matches(id, "herbs") end), 1, "no sections: plain tree")
 end)
 
+test("Sources stay Lua 5.1: no goto or labels (WoW doesn't parse them, LuaJIT does)", function()
+    local toc = assert(io.open("CustomQuests.toc", "rb"))
+    for line in toc:lines() do
+        local file = line:match("^(.-%.lua)%s*$")
+        if file then
+            local f = assert(io.open((file:gsub("\\", "/")), "rb"))
+            local text = f:read("*a")
+            f:close()
+            text = text:gsub("%-%-[^\n]*", ""):gsub('"[^"\n]*"', '""')
+            eq(text:find("%f[%w_]goto%f[^%w_]"), nil, file .. " uses goto")
+            eq(text:find("::[%a_][%w_]*::"), nil, file .. " has a label")
+        end
+    end
+    toc:close()
+end)
+
 print(("%d passed, %d failed"):format(passed, failed))
 if failed > 0 then os.exit(1) end

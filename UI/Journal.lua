@@ -162,11 +162,11 @@ local function buildEntries()
             end
             -- The live template decides the section; the copy is only a fallback.
             local live = Model.GetTemplate(q.templateID) or q.template
-            if searching and not Model.MatchesSearch(live, searchText()) then goto skip end
-            entries[#entries + 1] = { id = e.id, kind = UI.QuestKind(q.template, q.templateID),
-                iconState = ready and "ready" or (q.state == "done" and "available" or "progress"),
-                title = UI.QuestText(q.template.title), sub = sub, section = Model.SectionOf(live) }
-            ::skip::
+            if not searching or Model.MatchesSearch(live, searchText()) then
+                entries[#entries + 1] = { id = e.id, kind = UI.QuestKind(q.template, q.templateID),
+                    iconState = ready and "ready" or (q.state == "done" and "available" or "progress"),
+                    title = UI.QuestText(q.template.title), sub = sub, section = Model.SectionOf(live) }
+            end
         end
         local grouped = {}
         for _, g in ipairs(Model.GroupBySection(entries, function(entry) return entry.section end,
@@ -203,10 +203,10 @@ local function buildEntries()
         end
     else
         for i, row in ipairs(Lifecycle.GetHistorySummary()) do
-            if searching and not Model.MatchesText(row.title, searchText()) then goto skip end
-            entries[#entries + 1] = { id = i, icon = "Interface\\Icons\\INV_Misc_Book_09",
-                title = UI.QuestText(row.title), sub = L["HISTORY_ROW"]:format(row.count, UI.FormatDate(row.last)) }
-            ::skip::
+            if not searching or Model.MatchesText(row.title, searchText()) then
+                entries[#entries + 1] = { id = i, icon = "Interface\\Icons\\INV_Misc_Book_09",
+                    title = UI.QuestText(row.title), sub = L["HISTORY_ROW"]:format(row.count, UI.FormatDate(row.last)) }
+            end
         end
     end
     return entries
