@@ -4,7 +4,7 @@
 ## Notes-esES: Crea tus propias misiones de rol y objetivos personales, con seguimiento automático y plantillas.
 ## Author: Xavi
 ## Version: 0.5.0
-## IconTexture: Interface\Icons\INV_Misc_Book_09
+## IconTexture: Interface\AddOns\CustomQuests\Media\Icon
 ## SavedVariables: CustomQuestsDB
 ## SavedVariablesPerCharacter: CustomQuestsCharDB
 

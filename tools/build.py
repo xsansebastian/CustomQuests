@@ -26,7 +26,7 @@ def main():
     (ROOT / "dist").mkdir()
     path = ROOT / "dist" / f"{ADDON}-{version}.zip"
     with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as z:
-        for f in [f"{ADDON}.toc", *files, "README.md"]:
+        for f in [f"{ADDON}.toc", *files, "Media/Icon.tga", "README.md"]:
             if (ROOT / f).is_file():
                 z.write(ROOT / f, f"{ADDON}/{f}")
     print(f"{path.relative_to(ROOT)} ({len(files)} files)")

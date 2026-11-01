@@ -3,5 +3,6 @@ ignore:
   - tests
   - tools
   - docs
+  - assets
   - SPEC.md
   - .luarc.json

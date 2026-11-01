@@ -1,5 +1,7 @@
 # CustomQuests
 
+<img src="assets/logo.png" alt="CustomQuests logo" width="128">
+
 Create your own quests for roleplay and personal goals, with auto-tracking and reusable templates.
 Targets: **Retail** (interface 120105) and **Forever** (interface 16001), one package for both (single TOC listing both interfaces, client detected by build number): `python tools/build.py`. Forever is untested in game until verified there (see `SPEC.md`).
 
