@@ -1428,6 +1428,101 @@ shareTest("Share: a failed send tells the sender", function()
     eq(count(a.Share.Outgoing()), 0)
 end)
 
+-- Compression (mock codec: the real one is C_EncodingUtil, in game only) ---------------------
+-- "Compresses" by swapping a phrase the test quests repeat for a control byte.
+
+local PHRASE = "Lorem ipsum dolor sit amet"
+local function mockCodec(log)
+    return {
+        Compress = function(s) log.compress = (log.compress or 0) + 1 return "Z" .. s:gsub(PHRASE, "\1") end,
+        Decompress = function(s)
+            log.decompress = (log.decompress or 0) + 1
+            if s:sub(1, 1) ~= "Z" then return nil end
+            if log.bomb then return ("x"):rep(log.bomb) end
+            return (s:sub(2):gsub("\1", PHRASE))
+        end,
+        Encode64 = Serializer.ToBase64,
+        Decode64 = Serializer.FromBase64,
+    }
+end
+
+-- Which encoding the DATA frames used ("p" / "z"), from the wire.
+local function watchEncoding()
+    local seen = {}
+    net.filter = function(msg)
+        local e = msg.text:match("^1~D~[^~]+~%d+~%d+~(%a)~")
+        if e then seen[e] = true end
+    end
+    return seen
+end
+
+shareTest("Compression: used only when both sides can, and the result is identical", function()
+    local cases = {
+        { sender = true, receiver = true, expect = "z" },
+        { sender = true, receiver = false, expect = "p" },
+        { sender = false, receiver = true, expect = "p" },
+        { sender = false, receiver = false, expect = "p" },
+    }
+    for i, case in ipairs(cases) do
+        net.reset()
+        Comm.Reset()
+        local a, b = newClient("Alice"), newClient("Bob")
+        local logA, logB = {}, {}
+        a.codec = case.sender and mockCodec(logA) or nil
+        b.codec = case.receiver and mockCodec(logB) or nil
+        local id = chainIn(a, 3)
+        local text = a.ns.Serializer.ExportChain(id)
+        a.Share.Offer("quest", id, "WHISPER", "Bob", net.now)
+        net.flush()
+        local seen = watchEncoding()
+        b.Share.Accept(b.shown[1], net.now)
+        net.flush(5)
+        eq(seen[case.expect], true, "case " .. i)
+        eq(seen[case.expect == "z" and "p" or "z"], nil, "case " .. i .. " mixed encodings")
+        eq(#b.Model.ListTemplates(), 3, "case " .. i)
+        eq(b.ns.Serializer.ExportChain(b.imported[1].ids[1]), text, "case " .. i .. " same quests")
+    end
+end)
+
+shareTest("Compression: Compress and Decompress round-trip and refuse junk", function()
+    local a = newClient("Alice")
+    a.codec = mockCodec({})
+    local text = a.ns.Serializer.ExportChain(chainIn(a, 2))
+    local z = assert(a.Share.Compress(text))
+    assert(#z < #text, "smaller")
+    assert(not z:find("[~|]"), "printable and frame-safe")
+    eq(a.Share.Decompress(z), text)
+    eq(a.Share.Decompress("not base64!"), nil)
+    eq(a.Share.Decompress(Serializer.ToBase64("plain")), nil, "codec refuses")
+    eq(a.Share.Decompress(("A"):rep(math.ceil(Share.MAX_COMPRESSED / 3) * 4 + 4)), nil, "too much compressed data")
+    a.codec = nil
+    eq(a.Share.Compress(text), nil, "no codec, no compression")
+    eq(Serializer.FromRaw(("x"):rep(Serializer.MAX_RAW + 1)), nil)
+    eq(Serializer.ToRaw("nope"), nil)
+end)
+
+shareTest("Compression: a decompression bomb is refused before the import", function()
+    local a, b = newClient("Alice"), newClient("Bob")
+    local logB = { bomb = Serializer.MAX_RAW + 1 }
+    a.codec, b.codec = mockCodec({}), mockCodec(logB)
+    a.Share.Offer("quest", chainIn(a, 3), "WHISPER", "Bob", net.now)
+    net.flush()
+    b.Share.Accept(b.shown[1], net.now)
+    net.flush(5)
+    eq(logB.decompress, 1)
+    eq(#b.Model.ListTemplates(), 0)
+    assert(printed(b, "SHARE_IMPORT_FAILED"))
+end)
+
+shareTest("Compression: compressed data nobody asked for is refused", function()
+    local b = newClient("Bob") -- no codec: it accepts with z=0
+    b.Share.OnMessage(Comm.Pack("1", "O", "t1", "quest", 1, 100, "1", "T"), "WHISPER", "Alice-Realm", net.now)
+    b.Share.Accept(b.shown[1], net.now)
+    b.Share.OnMessage(Comm.Pack("1", "D", "t1", 1, 1, "z", "WkFB"), "WHISPER", "Alice-Realm", net.now)
+    assert(printed(b, "SHARE_CORRUPT"))
+    eq(count(b.Share.Incoming()), 0)
+end)
+
 -- Chat links ---------------------------------------------------------------------------------
 
 shareTest("Chat link: the marker becomes a local link and a click asks the sender", function()

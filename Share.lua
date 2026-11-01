@@ -92,10 +92,9 @@ local function whisper(target, tag, ...)
     send("WHISPER", target, tag, ...)
 end
 
--- True when this client can take compressed data (Share.Decompress is set
--- by the compression code and needs the native codec).
+-- True when this client can take compressed data (needs the native codec).
 local function canDecompress()
-    return Share.Decompress ~= nil and ns.api.GetCodec() ~= nil
+    return ns.api.GetCodec() ~= nil
 end
 
 -- What is shared -------------------------------------------------------------------------
@@ -159,7 +158,7 @@ end
 
 -- The payload for one recipient, and its encoding.
 local function payloadFor(offer, compressed)
-    if compressed and Share.Compress then
+    if compressed then
         local z = Share.Compress(offer.text)
         if z and #z < #offer.text then return z, "z" end
     end
@@ -343,7 +342,7 @@ end
 -- Turns a received payload into CQ1 text, or nil.
 local function payloadText(transfer, payload)
     if transfer.encoding == "z" then
-        return Share.Decompress and Share.Decompress(payload) or nil
+        return Share.Decompress(payload)
     end
     return payload
 end
@@ -378,7 +377,9 @@ end
 -- Bytes a payload may have: the plain text announced in the offer, or for
 -- compressed data the base64 of at most that much (deflate never needs more).
 local function payloadCap(transfer, encoding)
-    if encoding == "z" then return math.ceil(transfer.bytes / 3) * 4 + 4 end
+    if encoding == "z" then
+        return math.min(math.ceil(transfer.bytes / 3) * 4 + 4, math.ceil(Share.MAX_COMPRESSED / 3) * 4)
+    end
     return transfer.bytes
 end
 
@@ -425,6 +426,42 @@ local function onAbort(who, tid)
             break
         end
     end
+end
+
+-- Compression ------------------------------------------------------------------------------
+-- Transport only (the copy-paste format stays CQ1): the serialization inside
+-- the CQ1 text, Deflate, then base64 because logged addon messages must be
+-- printable. ns.api.GetCodec() is the native C_EncodingUtil, or nil.
+--
+-- DecompressString has no output limit, so a tiny payload could inflate to
+-- megabytes (a "zip bomb"). The defence is around the call: we only ever
+-- decompress data we accepted, the base64 can't pass what the offer
+-- announced, the compressed bytes can't pass MAX_COMPRESSED (Deflate's worst
+-- ratio is about 1:1032, so that bounds the transient string to ~4 MB), and
+-- the result is thrown away unless it fits in one CQ1 text.
+
+Share.MAX_COMPRESSED = 4096
+
+-- CQ1 text -> compressed payload, or nil (no codec, or not worth it).
+function Share.Compress(text)
+    local codec = ns.api.GetCodec()
+    local raw = codec and Serializer.ToRaw(text)
+    local bin = raw and codec.Compress(raw)
+    if not bin or #bin > Share.MAX_COMPRESSED then return nil end
+    return codec.Encode64(bin)
+end
+
+-- Compressed payload -> CQ1 text, or nil when anything is off.
+function Share.Decompress(payload)
+    local codec = ns.api.GetCodec()
+    if not codec or type(payload) ~= "string" or #payload > math.ceil(Share.MAX_COMPRESSED / 3) * 4 then
+        return nil
+    end
+    local bin = codec.Decode64(payload)
+    if not bin or #bin > Share.MAX_COMPRESSED then return nil end
+    local raw = codec.Decompress(bin)
+    if not raw or #raw > Serializer.MAX_RAW then return nil end
+    return Serializer.FromRaw(raw)
 end
 
 -- Chat links ------------------------------------------------------------------------------
