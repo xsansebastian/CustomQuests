@@ -275,7 +275,6 @@ L["SHARE_FAIL_SEND"] = "\"%s\" konnte nicht gesendet werden. Versuch es später 
 L["SHARE_SELECT_FIRST"] = "Wähle zuerst eine Vorlage im Questbuch und gib dann /cq share <Spieler | group | guild> ein."
 L["SHARE_LINK_NO_CHAT"] = "Öffne zuerst das Chatfenster und wähle dann erneut Link im Chat."
 L["SHARE_FROM"] = "Geteilt von %s"
-L["TOOLTIP_QUEST"] = "Quest: %s"
 L["SHARE_STARTED"] = "%d geteilte Quest(s) gestartet"
 L["ERR_SHARE_TRIAL"] = "Test- und Veteranenkonten können keine Quests an andere Spieler senden. Empfangen geht trotzdem."
 L["ERR_SHARE_UNAVAILABLE"] = "Teilen ist auf diesem Client nicht verfügbar."

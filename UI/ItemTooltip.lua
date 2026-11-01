@@ -17,15 +17,14 @@ local function addLines(tooltip, itemID)
         if ns.Lifecycle.IsUnlocked(hit.quest) then
             if first then
                 tooltip:AddLine(" ")
+                tooltip:AddLine("CQuests", 1, 0.82, 0)
                 first = false
             end
             local have = hit.quest.progress[hit.index] or 0
             local goal = ns.Objectives.Goal(hit.obj)
             local done = have >= goal
-            tooltip:AddDoubleLine(
-                L["TOOLTIP_QUEST"]:format(UI.QuestText(hit.quest.template.title)),
-                ("%d/%d"):format(have, goal),
-                1, 0.82, 0, done and 0.125 or 1, 1, done and 0.125 or 1)
+            tooltip:AddLine(("%s - %d/%d"):format(UI.QuestText(hit.quest.template.title), have, goal),
+                done and 0.125 or 1, 1, done and 0.125 or 1)
         end
     end
 end
