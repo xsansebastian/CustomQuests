@@ -58,6 +58,7 @@ function handlers.PLAYER_LOGIN()
     if ns.Tracker then ns.Tracker.Init() end
     if ns.Minimap then ns.Minimap.Init() end
     if ns.Options then ns.Options.Init() end
+    ns.InitSharing()
     ns.RefreshAll()
     ns.TrackProgress() -- records the starting point so login doesn't announce old progress
     C_Timer.NewTicker(60, function()
@@ -115,12 +116,90 @@ function handlers.ENCOUNTER_END(encounterID, encounterName, _, _, success)
     end
 end
 
+-- Sharing (ADR-006) ----------------------------------------------------------------
+-- Share and Comm are pure; this connects them to the client. A ticker runs
+-- only while something is queued, pending or arriving.
+
+local shareTicker, lastLockdownNotice = nil, -100
+
+local function shareWork()
+    if shareTicker then return end
+    shareTicker = C_Timer.NewTicker(0.2, function()
+        local now = ns.api.Clock()
+        ns.Comm.Pump(now)
+        ns.Share.Tick(now)
+        if ns.Share.IsIdle() then
+            shareTicker:Cancel()
+            shareTicker = nil
+        end
+    end)
+end
+
+local function shareNotify(key, ...)
+    if key == "SHARE_QUEUED_LOCKDOWN" or key == "SHARE_PAUSED_LOCKDOWN" then
+        -- One lockdown notice at a time, not one per offer and pause.
+        local now = ns.api.Clock()
+        if now - lastLockdownNotice < 10 then return end
+        lastLockdownNotice = now
+    end
+    ns.api.Print(L[key]:format(...))
+end
+
+function ns.InitSharing()
+    local Comm, Share, Dialogs = ns.Comm, ns.Share, ns.Dialogs
+    ns.api.RegisterCommPrefix(Comm.PREFIX)
+    Comm.transport = ns.api.SendComm
+    Comm.inLockdown = ns.api.InChatLockdown
+    Comm.onLockdown = function() shareNotify("SHARE_PAUSED_LOCKDOWN") end
+    Comm.onFail = Share.OnSendFailed
+    Share.onWork = shareWork
+    Share.notify = shareNotify
+    Share.showOffer = Dialogs.ShowShareOffer
+    Share.hideOffer = Dialogs.HideShareOffer
+    Share.imported = function(entries, ids, skipped, from)
+        ns.api.Print(L["SHARE_FROM"]:format(from))
+        Dialogs.ReportImported(entries, skipped)
+        if ns.Model.SharingOptions().autoStart then
+            local started = ns.Lifecycle.AcceptAll(ids)
+            if started > 0 then ns.api.Print(L["SHARE_STARTED"]:format(started)) end
+        end
+        ns.RefreshAll(true)
+    end
+    if ns.ChatLink then ns.ChatLink.Init() end
+end
+
+-- prefix, text, channel and sender may be secret during a chat lockdown: they
+-- are checked before anything compares them.
+local function onAddonMessage(prefix, text, channel, sender)
+    local api = ns.api
+    if api.IsSecret(prefix) or api.IsSecret(text) or api.IsSecret(channel) or api.IsSecret(sender) then return end
+    if prefix ~= ns.Comm.PREFIX then return end
+    ns.Share.OnMessage(text, channel, sender, api.Clock())
+    shareWork()
+end
+handlers.CHAT_MSG_ADDON = onAddonMessage
+handlers.CHAT_MSG_ADDON_LOGGED = onAddonMessage
+
+-- A chat lockdown began or ended: the ticker pumps the queue, which resumes
+-- on its own once InChatMessagingLockdown() is false.
+function handlers.ADDON_RESTRICTION_STATE_CHANGED()
+    if not ns.Comm.IsIdle() then shareWork() end
+end
+
+-- Offer popups wait for the end of combat.
+function handlers.PLAYER_REGEN_ENABLED()
+    ns.Share.ShowNext()
+end
+
 frame:SetScript("OnEvent", function(_, event, ...)
     -- Nothing to update until SavedVariables are loaded.
     if event ~= "ADDON_LOADED" and not Model.char then return end
-    handlers[event](...)
+    local handler = handlers[event]
+    if handler then handler(...) end
 end)
-for event in pairs(handlers) do frame:RegisterEvent(event) end
+-- pcall: an event this client doesn't have (ADDON_RESTRICTION_STATE_CHANGED on
+-- an older build) must not stop the others from registering.
+for event in pairs(handlers) do pcall(frame.RegisterEvent, frame, event) end
 
 Util.On("QUEST_COMPLETED", function(_, quest)
     ns.api.Print(L["QUEST_COMPLETED"]:format(ns.UI.QuestText(quest.template.title)))
@@ -265,6 +344,22 @@ function commands.options()
     if ns.Options then ns.Options.Open() end
 end
 
+-- /cq share <player | target | group | guild>: offers the template selected in
+-- the journal. Without an argument it goes to the current target.
+function commands.share(arg)
+    local id = ns.Journal and ns.Journal.SelectedTemplate()
+    if not id then ns.api.Print(L["SHARE_SELECT_FIRST"]) return end
+    local word = (arg or ""):lower()
+    if word == "group" or word == "party" or word == "raid" then
+        ns.Dialogs.Share("quest", id, "GROUP")
+    elseif word == "guild" then
+        ns.Dialogs.Share("quest", id, "GUILD")
+    else
+        local target = (word == "" or word == "target") and ns.api.TargetPlayerName() or arg
+        ns.Dialogs.Share("quest", id, "WHISPER", target)
+    end
+end
+
 function commands.help()
     ns.api.Print(L["HELP"])
 end
@@ -272,11 +367,12 @@ end
 SLASH_CUSTOMQUESTS1 = "/cq"
 SLASH_CUSTOMQUESTS2 = "/customquests"
 SlashCmdList["CUSTOMQUESTS"] = function(msg)
-    local cmd = (msg or ""):match("^%s*(%S*)"):lower()
+    local cmd, rest = (msg or ""):match("^%s*(%S*)%s*(.-)%s*$")
+    cmd = cmd:lower()
     if cmd == "" then
         if ns.Journal then ns.Journal.Toggle() end
     elseif commands[cmd] then
-        commands[cmd]()
+        commands[cmd](rest)
     else
         commands.help()
     end

@@ -136,6 +136,25 @@ end
 
 -- Public API -----------------------------------------------------------------
 
+Serializer.ToBase64 = toBase64
+Serializer.FromBase64 = fromBase64 -- nil for anything that isn't base64
+
+-- Most bytes the serialization inside a CQ1 text of MAX_LENGTH can have.
+Serializer.MAX_RAW = math.floor((Serializer.MAX_LENGTH - #Serializer.PREFIX) / 4) * 3
+
+-- The serialization inside a CQ1 text (what transport compression works on),
+-- or nil when text isn't one.
+function Serializer.ToRaw(text)
+    if type(text) ~= "string" or text:sub(1, #Serializer.PREFIX) ~= Serializer.PREFIX then return nil end
+    return fromBase64(text:sub(#Serializer.PREFIX + 1))
+end
+
+-- A CQ1 text around a serialization; nil when it would be too long to import.
+function Serializer.FromRaw(raw)
+    if type(raw) ~= "string" or #raw > Serializer.MAX_RAW then return nil end
+    return Serializer.PREFIX .. toBase64(raw)
+end
+
 function Serializer.Encode(value)
     local out = {}
     encodeValue(value, out, 0)

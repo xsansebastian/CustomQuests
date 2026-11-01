@@ -11,7 +11,7 @@ local Options = {}
 ns.Options = Options
 
 local WHITE = "Interface\\Buttons\\WHITE8X8"
-local CONTENT_WIDTH, CONTENT_HEIGHT = 560, 380
+local CONTENT_WIDTH, CONTENT_HEIGHT = 560, 600
 
 local panel, category
 local controls = {} -- everything that must re-read its value (after Reset, on show)
@@ -206,6 +206,50 @@ local function build(parent)
         refreshAll()
     end)
     reset:SetPoint("TOPLEFT", 0, -314)
+
+    -- Sharing: whose offers pop up, chat links, and the blocked players.
+    header(content, L["OPT_SHARING"], -360)
+    local function sharing() return Model.SharingOptions() end
+    text(content, L["OPT_SHARE_INCOMING"], 0, -398)
+    dropdown(content, 230, -394, 210, function()
+        local items = {}
+        for _, value in ipairs(Model.SHARE_INCOMING) do
+            items[#items + 1] = { value = value, text = L["OPT_SHARE_" .. value:upper()] }
+        end
+        return items
+    end, function() return sharing().incoming end, function(value) sharing().incoming = value end)
+
+    local links = CreateFrame("CheckButton", nil, content, "UICheckButtonTemplate")
+    links:SetPoint("TOPLEFT", -4, -428)
+    links:SetSize(24, 24)
+    text(content, L["OPT_SHARE_LINKS"], 24, -433)
+    links:SetScript("OnClick", function(self) sharing().chatLinks = self:GetChecked() and true or false end)
+    function links:Refresh() self:SetChecked(sharing().chatLinks) end
+    controls[#controls + 1] = links
+
+    local autoStart = CreateFrame("CheckButton", nil, content, "UICheckButtonTemplate")
+    autoStart:SetPoint("TOPLEFT", -4, -462)
+    autoStart:SetSize(24, 24)
+    text(content, L["OPT_SHARE_AUTOSTART"], 24, -467)
+    autoStart:SetScript("OnClick", function(self) sharing().autoStart = self:GetChecked() and true or false end)
+    function autoStart:Refresh() self:SetChecked(sharing().autoStart) end
+    controls[#controls + 1] = autoStart
+
+    local unblock = UI.CreateButton(content, "", 200, function(self)
+        Model.ClearShareBlocked()
+        ns.api.Print(L["OPT_SHARE_CLEARED"])
+        self:Refresh()
+    end)
+    unblock:SetPoint("TOPLEFT", 0, -498)
+    function unblock:Refresh()
+        local n = Model.account and Model.CountShareBlocked() or 0
+        self:SetText(L["OPT_SHARE_CLEAR_BLOCKED"]:format(n))
+        self:SetEnabled(n > 0)
+    end
+    controls[#controls + 1] = unblock
+
+    local help = text(content, L["OPT_SHARE_HELP"], 0, -534, "GameFontHighlightSmall")
+    help:SetWidth(CONTENT_WIDTH)
 
     parent:SetScript("OnShow", refreshAll)
     refreshAll()
