@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- New objective type **Near NPC**: completes when you get close to an NPC (talking to it, its soft interaction target, or your target, mouseover or a visible nameplate within about 10 yards). Pick the NPC with **Target**. An optional **popup text** opens a window with the NPC's portrait, its name and the text (scrolls when long), with the quest title on its title bar; it opens once, when the objective completes. While the objective is pending, the NPC's tooltip shows the quest and the objective's text. Inside instances the game hides who an NPC is, so it can't count there.
+- Location and Near NPC objectives have a **Shown text** field that replaces the default "Reach..." / "Approach...". The popup text has its own multi-line box in the editor.
+- Objectives: at most 5 per stage (was 10); the objectives list of the editor scrolls. The example quests that went over it were split into stages.
+- Completing the last objective of a quest no longer announces it twice.
+- Journal: a checkbox next to the search box (Templates) hides the quests this character has already completed. Shift+click on an Active quest tracks or untracks it (with a chat box open it still links it).
+- Tracker: Shift+click a quest title stops tracking it.
+- Quest icons all fit the same square, keeping their proportions; before, some were stretched.
 - Journal: a search box above the list (Templates, Active and History, each with its own text) filters as you type. Every word must appear in the title, the section name or a stage's text; folded sections and chains open while you search.
 - Item tooltips: an item that an active quest asks for shows a line with the quest's title and how many you have of how many it needs (green when done).
 - Tracker: left-click a quest title to open the Journal on that quest.

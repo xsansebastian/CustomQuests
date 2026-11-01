@@ -33,6 +33,15 @@ Run with `/console scriptErrors 1`. Record client, build (`/dump select(4, GetBu
 | 25 | Narrowest Journal (drag the corner), edit-list mode | "Add section" button and the "Move to section" menu fit; headers stretch with the list | |
 | 26 | Hold Shift over the tracker, drag the corner grip | Tracker gets wider/narrower (200-520) and taller/shorter; banner and section bars stretch, text rewraps; size kept after `/reload` | |
 | 27 | Make the tracker shorter than its quests; mouse wheel over it; right-click the grip | Quests scroll; right-click returns to the fitting height; folding the tracker shrinks it to the banner | |
+| 28 | Editor → Near NPC → target an NPC → Target; add Shown text and Popup text; save and accept | Tracker shows the Shown text; the editor's popup box scrolls and takes several lines | |
+| 29 | Walk up to that NPC (and, separately, only target it from a few yards) | Objective completes once, the popup opens with portrait, name, quest title and scrolling text; Close and Esc close it | |
+| 30 | Hover the NPC while the objective is pending, and again after it completes | Tooltip shows a CQuests header, the quest title and the objective text; nothing after it completes | |
+| 31 | Same NPC inside an instance during combat | No error; the objective does not complete (identity is secret) | |
+| 32 | Complete the last objective of a quest | One "(completed)" line and one "ready to turn in" line, not two | |
+| 33 | Templates → tick the checkbox next to the search box; complete a quest first | Completed quests disappear (and sections left empty); search still works; untick restores them | |
+| 34 | Active → Shift+click a quest; tracker → Shift+click a quest title | Tracks / untracks; with a chat box open on Active it links instead | |
+| 35 | Add a 6th objective to a stage; add 4 Near NPC objectives with popup boxes | The button stops at 5; the objectives list scrolls | |
+| 36 | Compare the tracker and journal icons (progress, ready, chain, daily) | Same size, none stretched | |
 
 ## Sharing (ADR-006)
 
