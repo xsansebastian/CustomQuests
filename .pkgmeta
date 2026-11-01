@@ -1,0 +1,7 @@
+package-as: CustomQuests
+ignore:
+  - tests
+  - tools
+  - docs
+  - SPEC.md
+  - .luarc.json

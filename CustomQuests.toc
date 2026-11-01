@@ -1,0 +1,27 @@
+## Interface: 120105, 120001, 16001
+## Title: CustomQuests
+## Notes: Create your own quests for roleplay and personal goals, with auto-tracking and reusable templates.
+## Notes-esES: Crea tus propias misiones de rol y objetivos personales, con seguimiento automático y plantillas.
+## Author: Xavi
+## Version: 0.5.0
+## IconTexture: Interface\Icons\INV_Misc_Book_09
+## SavedVariables: CustomQuestsDB
+## SavedVariablesPerCharacter: CustomQuestsCharDB
+
+Locales\enUS.lua
+Locales\esES.lua
+Util.lua
+Compat\Common.lua
+Model.lua
+Serializer.lua
+Objectives.lua
+Lifecycle.lua
+Samples.lua
+UI\Common.lua
+UI\Dialogs.lua
+UI\TurnIn.lua
+UI\Tracker.lua
+UI\Journal.lua
+UI\IconPicker.lua
+UI\Editor.lua
+Core.lua

@@ -1,0 +1,13 @@
+{
+  "runtime.version": "Lua 5.1",
+  "workspace.ignoreDir": ["tests"],
+  "diagnostics.globals": [
+    "CustomQuestsDB", "CustomQuestsCharDB", "SLASH_CUSTOMQUESTS1", "SLASH_CUSTOMQUESTS2", "SlashCmdList",
+    "CreateFrame", "UIParent", "UISpecialFrames", "GameTooltip", "GameTooltip_Hide",
+    "StaticPopupDialogs", "StaticPopup_Show", "YES", "NO", "CLOSE", "SAVE", "CANCEL", "DELETE",
+    "C_AddOns", "C_Item", "C_Map", "C_DateAndTime", "C_Timer",
+    "WOW_PROJECT_ID", "WOW_PROJECT_MAINLINE", "issecretvalue",
+    "UnitExists", "UnitIsPlayer", "UnitGUID", "UnitName", "GetRealmName", "GetLocale",
+    "PlaySound", "OKAY", "CreateAndInitFromMixin", "IconDataProviderMixin", "IconDataProviderExtraType", "CustomQuestsIconPicker", "C_ClassColor", "UnitClass", "UnitRace", "UnitLevel", "SOUNDKIT", "ChatEdit_InsertLink", "hooksecurefunc", "tinsert", "date", "time"
+  ]
+}
