@@ -10,6 +10,21 @@ local WIDTH = 260
 local LINE_HEIGHT = 12
 local PAD = 8 -- left margin inside the tracker
 
+-- Banner header like the game's "All Objectives": dark banner with gold lines,
+-- and a red square button that folds the tracker. Drawn with the game's own
+-- atlases; when one is missing the plain header is used instead.
+local HEADER_ATLAS = "ui-questtracker-primary-objective-header"
+local MINIMIZE_ATLAS = { collapse = "ui-questtrackerbutton-collapse-all", expand = "ui-questtrackerbutton-expand-all" }
+local MINIMIZE_HIGHLIGHT = "ui-questtrackerbutton-red-highlight"
+local BANNER_HEIGHT, PLAIN_HEIGHT = 32, 18
+
+local function hasAtlas(name)
+    return C_Texture and C_Texture.GetAtlasInfo and C_Texture.GetAtlasInfo(name) ~= nil
+end
+
+local fancyHeader -- true when every atlas above exists
+local headerHeight = PLAIN_HEIGHT
+
 local frame, header
 local lines, plusButtons, titleButtons = {}, {}, {}
 local savePosition
@@ -123,7 +138,11 @@ local function create()
 
     header = CreateFrame("Button", nil, frame)
     header:SetPoint("TOPLEFT")
-    header:SetSize(WIDTH, 18)
+    fancyHeader = hasAtlas(HEADER_ATLAS) and hasAtlas(MINIMIZE_ATLAS.collapse) and hasAtlas(MINIMIZE_ATLAS.expand)
+        and hasAtlas(MINIMIZE_HIGHLIGHT) and hasAtlas(MINIMIZE_ATLAS.collapse .. "-pressed")
+        and hasAtlas(MINIMIZE_ATLAS.expand .. "-pressed")
+    headerHeight = fancyHeader and BANNER_HEIGHT or PLAIN_HEIGHT
+    header:SetSize(WIDTH, headerHeight)
     header:RegisterForDrag("LeftButton")
     header:RegisterForClicks("LeftButtonUp", "RightButtonUp")
     header:SetScript("OnDragStart", startMove)
@@ -143,8 +162,33 @@ local function create()
         GameTooltip:Show()
     end)
     header:SetScript("OnLeave", GameTooltip_Hide)
-    header.text = UI.Style.Text(header:CreateFontString(nil, "OVERLAY", "GameFontNormal"))
+    header.text = header:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     header.text:SetPoint("LEFT", PAD, 0)
+    header.text:SetWidth(WIDTH - PAD - 28) -- keeps clear of the fold button
+    header.text:SetWordWrap(false)
+    header.text:SetJustifyH("LEFT")
+    if fancyHeader then
+        header.background = header:CreateTexture(nil, "BACKGROUND")
+        header.background:SetAtlas(HEADER_ATLAS, true)
+        header.background:SetPoint("CENTER")
+        -- 14 pt with a shadow, as in the game's tracker.
+        local path = header.text:GetFont()
+        header.text:SetFont(path, 14, "")
+        header.text:SetShadowOffset(1, -1)
+        header.text:SetShadowColor(0, 0, 0, 1)
+
+        local minimize = CreateFrame("Button", nil, header)
+        minimize:SetSize(18, 19)
+        minimize:SetPoint("RIGHT", -1, 0)
+        minimize:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+        minimize:SetHighlightAtlas(MINIMIZE_HIGHLIGHT, "ADD")
+        minimize:SetScript("OnClick", function()
+            Model.char.trackerCollapsed = not Model.char.trackerCollapsed
+            Tracker.Refresh()
+        end)
+        header.minimize = minimize
+    end
+    UI.Style.Text(header.text)
 
     local pos = Model.char.trackerPos
     if pos then
@@ -173,9 +217,16 @@ function Tracker.Refresh()
     frame:Show()
 
     local collapsed = Model.char.trackerCollapsed
-    header.text:SetText(("CustomQuests (%d)%s"):format(#tracked, collapsed and " +" or ""))
+    if fancyHeader then
+        header.text:SetText(("CustomQuests (%d)"):format(#tracked))
+        local atlas = collapsed and MINIMIZE_ATLAS.expand or MINIMIZE_ATLAS.collapse
+        header.minimize:SetNormalAtlas(atlas)
+        header.minimize:SetPushedAtlas(atlas .. "-pressed")
+    else
+        header.text:SetText(("CustomQuests (%d)%s"):format(#tracked, collapsed and " +" or ""))
+    end
 
-    local y, n, nPlus, nTitle = -20, 0, 0, 0
+    local y, n, nPlus, nTitle = -(headerHeight + 2), 0, 0, 0
     if not collapsed then
         for _, entry in ipairs(tracked) do
             local quest = entry.quest

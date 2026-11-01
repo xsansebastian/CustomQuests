@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- New tracker appearance settings in Options > AddOns > CustomQuests (also `/cq options`): font (including SharedMedia fonts if installed) and text size, background color and opacity, border style and color, with a live preview and a reset button. The tracker also has a little more margin on the left.
+- New tracker appearance settings in Options > AddOns > CustomQuests (also `/cq options`): font (including SharedMedia fonts if installed) and text size, background color and opacity, border style and color, with a live preview and a reset button. The tracker also has a little more margin on the left, and a header banner like the game's own objective tracker, with a red button to fold it.
 
 ## 0.6.0
 
