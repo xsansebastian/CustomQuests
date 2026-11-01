@@ -87,7 +87,7 @@ XML uses `<!--@debug@-->` … `<!--@end-debug@-->`; TOC files use `#@debug@` …
 
 ## Release checklist
 
-1. Tests pass; `## Version:` bumped; changelog updated (create `CHANGELOG.txt` and add `manual-changelog` if you want it as the changelog).
+1. Tests pass; `## Version:` bumped; `CHANGELOG.md` has a new section at the top (this repo uses `manual-changelog` in `.pkgmeta`; the `markup-type` key is not on the CurseForge page, so confirm the first release shows the changelog correctly).
 2. Webhook exists and points at the right project ID (the token is never committed).
 3. Tag with the release type in the name when it is not a full release (`0.6.0-beta1`), plain `0.6.0` otherwise. Push the tag.
 4. Download the produced zip and check: top folder is `CustomQuests`, TOC and every listed file present, `Media/Icon.tga` present, no `tests/`, `tools/`, `docs/`, `assets/`.
