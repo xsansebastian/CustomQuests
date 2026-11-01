@@ -182,3 +182,208 @@ function api.PlayObjectiveSound()
     local sound = SOUNDKIT and (SOUNDKIT.UI_QUEST_ROLLING_FORWARD_01 or SOUNDKIT.IG_QUEST_LIST_COMPLETE)
     if sound then PlaySound(sound) end
 end
+
+-- Sharing: addon messages, players, chat links -----------------------------------
+-- C_ChatInfo, C_FriendList and C_EncodingUtil are declared alike in Retail
+-- 12.1.5 and Forever 1.60.1 (wow-addon-dev snapshot 2.1.0); everything is
+-- feature-detected and wrapped so a missing or throwing call degrades instead
+-- of erroring.
+
+-- Seconds with sub-second precision, for throttles and timeouts.
+function api.Clock()
+    return GetTime()
+end
+
+function api.InCombat()
+    return InCombatLockdown and InCombatLockdown() or false
+end
+
+function api.RegisterCommPrefix(prefix)
+    if C_ChatInfo and C_ChatInfo.RegisterAddonMessagePrefix then
+        pcall(C_ChatInfo.RegisterAddonMessagePrefix, prefix)
+    end
+end
+
+-- 12.x: addon messages and chat stop during raid encounters, Mythic+ and the
+-- like. False where the client doesn't have the query.
+function api.InChatLockdown()
+    local query = C_ChatInfo and C_ChatInfo.InChatMessagingLockdown
+    if not query then return false end
+    local ok, locked = pcall(query)
+    return ok and locked == true
+end
+
+-- Enum.SendAddonMessageResult (same 13 values in both clients) by number, so
+-- it also works if the Enum table is missing.
+local SEND_RESULTS = {
+    [0] = "ok", [3] = "throttle", [8] = "throttle", [5] = "nogroup", [10] = "noguild",
+    [11] = "lockdown", [12] = "offline",
+}
+
+-- Sends one addon message. Logged, because the content is written by players
+-- and the logged variant is the one that can be reported (warcraft.wiki.gg).
+-- Returns "ok", "throttle", "lockdown", "offline", "nogroup", "noguild" or "error".
+function api.SendComm(prefix, text, channel, target)
+    local send = C_ChatInfo and (C_ChatInfo.SendAddonMessageLogged or C_ChatInfo.SendAddonMessage)
+    if not send then return "error" end
+    local ok, code = pcall(send, prefix, text, channel, target)
+    if not ok then return api.InChatLockdown() and "lockdown" or "error" end
+    if code == nil or code == true then return "ok" end -- nothing or a boolean on older builds
+    if code == false then return "error" end
+    return SEND_RESULTS[code] or "error"
+end
+
+-- Trial and Veteran accounts can't send addon messages (Forever 1.60.1, and
+-- Retail from 12.1.7 per warcraft.wiki.gg). Returns true, or false and an error key.
+function api.CanSendComm()
+    if not (C_ChatInfo and (C_ChatInfo.SendAddonMessageLogged or C_ChatInfo.SendAddonMessage)) then
+        return false, "ERR_SHARE_UNAVAILABLE"
+    end
+    if (IsTrialAccount and IsTrialAccount()) or (IsVeteranTrialAccount and IsVeteranTrialAccount()) then
+        return false, "ERR_SHARE_TRIAL"
+    end
+    return true
+end
+
+local function realm()
+    local r = GetNormalizedRealmName and GetNormalizedRealmName()
+    if not r or r == "" then r = (GetRealmName() or ""):gsub("[%s%-]", "") end
+    return r
+end
+
+-- "Name-Realm" for any name; a bare name is on our realm.
+function api.FullName(name)
+    if type(name) ~= "string" or name == "" or api.IsSecret(name) then return nil end
+    if name:find("-", 1, true) then return name end
+    return name .. "-" .. realm()
+end
+
+function api.PlayerFullName()
+    local name, r = UnitFullName("player")
+    return (name or "?") .. "-" .. ((r and r ~= "") and r or realm())
+end
+
+-- The current target's full name when it is another player, else nil.
+function api.TargetPlayerName()
+    if not (UnitExists("target") and UnitIsPlayer("target")) or UnitIsUnit("target", "player") then return nil end
+    local name, r = UnitName("target")
+    if not name or api.IsSecret(name) or api.IsSecret(r) then return nil end
+    return (r and r ~= "") and (name .. "-" .. r) or api.FullName(name)
+end
+
+-- A name without our own realm, as the game shows it.
+function api.ShortName(name)
+    if Ambiguate then
+        local ok, short = pcall(Ambiguate, name, "none")
+        if ok and type(short) == "string" then return short end
+    end
+    return name
+end
+
+function api.IsIgnored(name)
+    local check = C_FriendList and C_FriendList.IsIgnored
+    if not check then return false end
+    for _, n in ipairs({ name, api.ShortName(name) }) do
+        local ok, ignored = pcall(check, n)
+        if ok and ignored then return true end
+    end
+    return false
+end
+
+-- The chat type for "my group": instance group, raid or party; nil when alone.
+function api.GroupChannel()
+    if not IsInGroup then return nil end
+    if LE_PARTY_CATEGORY_INSTANCE and IsInGroup(LE_PARTY_CATEGORY_INSTANCE) then return "INSTANCE_CHAT" end
+    if IsInRaid and IsInRaid() then return "RAID" end
+    if IsInGroup() then return "PARTY" end
+    return nil
+end
+
+function api.IsInGuild()
+    return IsInGuild and IsInGuild() or false
+end
+
+local function isGuildMember(full)
+    if not (api.IsInGuild() and GetNumGuildMembers and GetGuildRosterInfo) then return false end
+    local wanted = full:lower()
+    for i = 1, math.min(GetNumGuildMembers() or 0, 1000) do
+        local member = GetGuildRosterInfo(i)
+        if type(member) == "string" and not api.IsSecret(member) and member:lower() == wanted then return true end
+    end
+    return false
+end
+
+-- Someone on the friends list, in the group or in the guild.
+function api.IsTrusted(name)
+    local full = api.FullName(name)
+    if not full then return false end
+    local short = api.ShortName(full)
+    if C_FriendList and C_FriendList.GetFriendInfo then
+        for _, n in ipairs({ full, short }) do
+            local ok, info = pcall(C_FriendList.GetFriendInfo, n)
+            if ok and info then return true end
+        end
+    end
+    if UnitInParty then
+        local ok, inParty = pcall(UnitInParty, short)
+        if ok and inParty == true then return true end
+        local ok2, inRaid = pcall(UnitInRaid, short)
+        if ok2 and type(inRaid) == "number" then return true end
+    end
+    local ok, member = pcall(isGuildMember, full)
+    return ok and member
+end
+
+-- Native Deflate + base64 (C_EncodingUtil), or nil when the client lacks it.
+-- Every call is protected: nil means "couldn't".
+local codec
+function api.GetCodec()
+    if codec ~= nil then return codec or nil end
+    local E = C_EncodingUtil
+    if not (E and E.CompressString and E.DecompressString and E.EncodeBase64 and E.DecodeBase64) then
+        codec = false
+        return nil
+    end
+    local deflate = Enum and Enum.CompressionMethod and Enum.CompressionMethod.Deflate or 0
+    local function safe(fn, ...)
+        local ok, out = pcall(fn, ...)
+        return ok and type(out) == "string" and out or nil
+    end
+    codec = {
+        Compress = function(s) return safe(E.CompressString, s, deflate) end,
+        Decompress = function(s) return safe(E.DecompressString, s, deflate) end,
+        Encode64 = function(s) return safe(E.EncodeBase64, s) end,
+        Decode64 = function(s) return safe(E.DecodeBase64, s) end,
+    }
+    return codec
+end
+
+-- Chat filter on a CHAT_MSG_* event. False when neither the 12.x
+-- ChatFrameUtil nor the older global exists.
+function api.AddChatFilter(event, fn)
+    local add = (ChatFrameUtil and ChatFrameUtil.AddMessageEventFilter) or ChatFrame_AddMessageEventFilter
+    if not add then return false end
+    return (pcall(add, event, fn))
+end
+
+-- Clicks on |Haddon:...|h links reach EventRegistry's "SetItemRef" (local
+-- links only, both clients). fn(link, button). False when that is missing.
+function api.OnAddonLinkClick(fn)
+    if not (EventRegistry and EventRegistry.RegisterCallback) then return false end
+    local ok = pcall(EventRegistry.RegisterCallback, EventRegistry, "SetItemRef", function(_, link, _, button)
+        if type(link) == "string" and not api.IsSecret(link) then fn(link, button) end
+    end, api)
+    return ok
+end
+
+-- Puts text in the open chat box, opening one when none is. False if it can't.
+function api.InsertChatText(text)
+    local insert = (ChatFrameUtil and ChatFrameUtil.InsertLink) or ChatEdit_InsertLink
+    if insert then
+        local ok, done = pcall(insert, text)
+        if ok and done then return true end
+    end
+    local open = (ChatFrameUtil and ChatFrameUtil.OpenChat) or ChatFrame_OpenChat
+    if open then return (pcall(open, text)) end
+    return false
+end

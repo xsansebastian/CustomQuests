@@ -153,7 +153,12 @@ local OPTION_DEFAULTS = {
     font = "default",
     scale = 100,
     tracker = { bg = { 0, 0, 0 }, bgAlpha = 0, border = "none", borderColor = { 1, 0.82, 0 } },
+    -- Quest sharing: whose offers pop up ("trusted" = friends, guild and
+    -- group), and whether [CustomQuests: ...] in chat becomes a link.
+    sharing = { incoming = "trusted", chatLinks = true },
 }
+
+Model.SHARE_INCOMING = { "trusted", "anyone", "off" }
 
 local function validNumber(v)
     return type(v) == "number" and v == v and v ~= math.huge and v ~= -math.huge
@@ -190,6 +195,7 @@ function Model.CleanOptions(saved)
     local d = OPTION_DEFAULTS.tracker
     local t = type(saved.tracker) == "table" and saved.tracker or {}
     local font = type(saved.font) == "string" and #saved.font > 0 and #saved.font <= 128 and saved.font
+    local sharing = type(saved.sharing) == "table" and saved.sharing or {}
     return {
         title = Model.CleanTrackerTitle(saved.title),
         font = font or OPTION_DEFAULTS.font,
@@ -201,7 +207,54 @@ function Model.CleanOptions(saved)
             border = contains(Model.BORDER_STYLES, t.border) and t.border or d.border,
             borderColor = cleanColor(t.borderColor, d.borderColor),
         },
+        sharing = {
+            incoming = contains(Model.SHARE_INCOMING, sharing.incoming) and sharing.incoming
+                or OPTION_DEFAULTS.sharing.incoming,
+            chatLinks = sharing.chatLinks ~= false,
+        },
     }
+end
+
+function Model.SharingOptions()
+    return Model.account and Model.account.options.sharing or OPTION_DEFAULTS.sharing
+end
+
+-- Players whose shared quests are never shown (lowercase "name-realm").
+Model.MAX_SHARE_BLOCKED = 200
+
+local function cleanBlocked(saved)
+    local out, n = {}, 0
+    if type(saved) ~= "table" then return out end
+    for name, on in pairs(saved) do
+        if on == true and type(name) == "string" and #name <= 64 and not name:find("[|%c]") and n < Model.MAX_SHARE_BLOCKED then
+            out[name:lower()] = true
+            n = n + 1
+        end
+    end
+    return out
+end
+
+function Model.IsShareBlocked(nameKey)
+    return Model.account ~= nil and Model.account.shareBlocked[nameKey] == true
+end
+
+-- Returns false when the list is full.
+function Model.SetShareBlocked(nameKey, blocked)
+    local list = Model.account.shareBlocked
+    if not blocked then list[nameKey] = nil return true end
+    if not list[nameKey] and Model.CountShareBlocked() >= Model.MAX_SHARE_BLOCKED then return false end
+    list[nameKey] = true
+    return true
+end
+
+function Model.CountShareBlocked()
+    local n = 0
+    for _ in pairs(Model.account.shareBlocked) do n = n + 1 end
+    return n
+end
+
+function Model.ClearShareBlocked()
+    Model.account.shareBlocked = {}
 end
 
 -- SavedVariables ------------------------------------------------------------
@@ -226,6 +279,7 @@ function Model.InitDB(accountDB, charDB)
     accountDB.minimap = accountDB.minimap or { angle = 225, hidden = false }
     accountDB.windowSizes = type(accountDB.windowSizes) == "table" and accountDB.windowSizes or {}
     accountDB.options = Model.CleanOptions(accountDB.options)
+    accountDB.shareBlocked = cleanBlocked(accountDB.shareBlocked)
     charDB.schema = charDB.schema or Model.SCHEMA
     charDB.active = charDB.active or {}
     charDB.tracked = charDB.tracked or {}

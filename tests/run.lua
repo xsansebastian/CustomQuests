@@ -24,11 +24,11 @@ ns.api = {
     GetPlayerLevel = function() return fake.level end,
 }
 
-for _, file in ipairs({ "Util.lua", "Model.lua", "Serializer.lua", "Comm.lua", "Objectives.lua", "Lifecycle.lua", "Samples.lua" }) do
+for _, file in ipairs({ "Util.lua", "Model.lua", "Serializer.lua", "Comm.lua", "Share.lua", "Objectives.lua", "Lifecycle.lua", "Samples.lua" }) do
     assert(loadfile(file))("CustomQuests", ns)
 end
 local Util, Model, Serializer, Objectives, Lifecycle = ns.Util, ns.Model, ns.Serializer, ns.Objectives, ns.Lifecycle
-local Samples, Comm = ns.Samples, ns.Comm
+local Samples, Comm, Share = ns.Samples, ns.Comm, ns.Share
 
 local passed, failed = 0, 0
 local function test(name, fn)
@@ -946,6 +946,525 @@ test("Comm queue drops a whole transfer when a message fails", function()
     eq(Comm.Pending("t2"), 0, "the other transfer still went out")
     eq(Comm.Cancel("t2"), 0)
     Comm.onFail = function() end
+end)
+
+-- Share: the offer / accept / data protocol between fake players ---------------------------
+-- Each client loads its own copy of the modules (its own SavedVariables, Comm
+-- queue and Share state); net carries the addon messages between them.
+
+local net = { now = 0, clients = {}, wire = {} }
+
+local function fullName(n)
+    if type(n) ~= "string" or n == "" then return nil end
+    return n:find("-", 1, true) and n or (n .. "-Realm")
+end
+
+function net.reset()
+    net.now, net.clients, net.wire = 0, {}, {}
+    net.filter = nil
+end
+
+local function newClient(name)
+    local c = { name = name, full = name .. "-Realm", printed = {}, shown = {}, hidden = {}, imported = {},
+        trusted = {}, ignored = {}, canSend = true, lockdown = false, combat = false }
+    local cns = { L = ns.L }
+    cns.api = {
+        Now = function() return 1000 + math.floor(net.now) end,
+        IsSecret = function() return false end,
+        GetPlayerTokens = function() return {} end,
+        FullName = fullName,
+        PlayerFullName = function() return c.full end,
+        ShortName = function(n) return (n:gsub("%-Realm$", "")) end,
+        CanSendComm = function() if c.canSend then return true end return false, "ERR_SHARE_TRIAL" end,
+        GroupChannel = function() return c.group and "PARTY" or nil end,
+        IsInGuild = function() return c.guild ~= nil end,
+        InChatLockdown = function() return c.lockdown end,
+        InCombat = function() return c.combat end,
+        IsIgnored = function(n) return c.ignored[fullName(n)] or false end,
+        IsTrusted = function(n) return c.trusted[fullName(n)] or false end,
+        GetCodec = function() return c.codec end,
+    }
+    for _, file in ipairs({ "Util.lua", "Model.lua", "Serializer.lua", "Comm.lua", "Share.lua" }) do
+        assert(loadfile(file))("CustomQuests", cns)
+    end
+    cns.Model.InitDB({}, {})
+    -- Tests opt into the default "trusted" setting where they check it.
+    cns.Model.account.options.sharing.incoming = "anyone"
+    local S = cns.Share
+    cns.Comm.transport = function(_, text, channel, target)
+        if c.sendResult then return c.sendResult end
+        net.wire[#net.wire + 1] = { from = c, text = text, channel = channel, target = target }
+        return "ok"
+    end
+    cns.Comm.inLockdown = function() return c.lockdown end
+    cns.Comm.onFail = function(tag, result) S.OnSendFailed(tag, result) end
+    S.notify = function(key) c.printed[#c.printed + 1] = key end
+    S.showOffer = function(offer) c.shown[#c.shown + 1] = offer end
+    S.hideOffer = function(offer) c.hidden[#c.hidden + 1] = offer end
+    S.imported = function(entries, ids, skipped) c.imported[#c.imported + 1] = { entries = entries, ids = ids, skipped = skipped } end
+    c.ns, c.Share, c.Model, c.Comm = cns, S, cns.Model, cns.Comm
+    net.clients[c.full] = c
+    return c
+end
+
+local function printed(c, key)
+    for _, k in ipairs(c.printed) do if k == key then return true end end
+    return false
+end
+
+-- Pumps every queue and delivers until nothing moves. net.filter(msg) may drop
+-- (false) messages; net.shuffle reverses each batch to deliver out of order.
+function net.flush(seconds)
+    for _ = 1, 200 do
+        for _, c in pairs(net.clients) do c.Comm.Pump(net.now) end
+        local batch = net.wire
+        net.wire = {}
+        if #batch == 0 then
+            if (seconds or 0) <= 0 then return end
+            net.now = net.now + 1
+            seconds = seconds - 1
+        end
+        if net.shuffle then
+            for i = 1, math.floor(#batch / 2) do batch[i], batch[#batch - i + 1] = batch[#batch - i + 1], batch[i] end
+        end
+        for _, msg in ipairs(batch) do
+            if not net.filter or net.filter(msg) ~= false then
+                if msg.channel == "WHISPER" then
+                    local to = net.clients[fullName(msg.target)]
+                    if to then to.Share.OnMessage(msg.text, "WHISPER", msg.from.full, net.now) end
+                else
+                    for _, to in pairs(net.clients) do
+                        local same = (msg.channel == "GUILD" and to.guild == msg.from.guild)
+                            or (msg.channel ~= "GUILD" and to.group == msg.from.group)
+                        if same and to.group ~= nil or same and msg.channel == "GUILD" then
+                            to.Share.OnMessage(msg.text, msg.channel, msg.from.full, net.now)
+                        end
+                    end
+                end
+            end
+        end
+    end
+end
+
+local function tick(seconds)
+    for _ = 1, seconds do
+        net.now = net.now + 1
+        for _, c in pairs(net.clients) do c.Share.Tick(net.now) end
+        net.flush()
+    end
+end
+
+-- A chain of n quests in c's templates, each with a long description so the
+-- transfer needs several fragments. Returns the first id.
+local function chainIn(c, n, prefix)
+    local ids = {}
+    for i = 1, n do
+        ids[i] = assert(c.Model.SaveTemplate({ title = (prefix or "Part ") .. i,
+            description = ("Lorem ipsum dolor sit amet %d. "):format(i):rep(14),
+            stages = { { objectives = { { type = "manual", text = "step " .. i } } } },
+            requires = ids[i - 1] }, nil, 1000))
+    end
+    return ids[1]
+end
+
+local function count(t) local n = 0 for _ in pairs(t) do n = n + 1 end return n end
+
+local function shareTest(name, fn)
+    test(name, function()
+        net.reset()
+        net.shuffle = false
+        Comm.Reset()
+        fn()
+    end)
+end
+
+shareTest("Share: a whispered chain arrives in several fragments and is imported", function()
+    local a, b = newClient("Alice"), newClient("Bob")
+    local first = chainIn(a, 3)
+    eq(a.Share.Describe("quest", first).kind, "chain")
+    assert(a.Share.Offer("quest", first, "WHISPER", "Bob", net.now))
+    net.flush()
+    eq(#b.shown, 1)
+    local offer = b.shown[1]
+    eq(offer.title, "Part 1")
+    eq(offer.count, 3)
+    eq(offer.kind, "chain")
+    eq(offer.senderLabel, "Alice")
+    assert(offer.bytes > 3 * Comm.MAX_CHUNK, "big enough for several fragments")
+    b.Share.Accept(offer, net.now)
+    net.shuffle = true -- fragments arrive in reverse order
+    net.flush(5)
+    eq(#b.imported, 1)
+    eq(#b.Model.ListTemplates(), 3)
+    local imported = b.imported[1]
+    eq(b.Model.GetTemplate(imported.ids[3]).requires, imported.ids[2], "links rebuilt")
+    assert(printed(a, "SHARE_DELIVERED"))
+    eq(count(a.Share.Outgoing()), 0, "a whisper offer is done once delivered")
+    eq(count(b.Share.Incoming()), 0)
+    assert(a.Share.IsIdle() and b.Share.IsIdle())
+end)
+
+shareTest("Share: sending the same quest again reports a duplicate, not a copy", function()
+    local a, b = newClient("Alice"), newClient("Bob")
+    local id = chainIn(a, 1)
+    for round = 1, 2 do
+        assert(a.Share.Offer("quest", id, "WHISPER", "Bob", net.now))
+        net.flush()
+        b.Share.Accept(b.shown[round], net.now)
+        net.flush(5)
+        net.now = net.now + Share.SENDER_COOLDOWN + 1
+    end
+    eq(#b.Model.ListTemplates(), 1)
+    eq(b.imported[2].skipped[1], true)
+    assert(printed(a, "SHARE_DELIVERED_DUP"))
+end)
+
+shareTest("Share: declining tells the sender and imports nothing", function()
+    local a, b = newClient("Alice"), newClient("Bob")
+    assert(a.Share.Offer("quest", chainIn(a, 1), "WHISPER", "Bob", net.now))
+    net.flush()
+    b.Share.Decline(b.shown[1])
+    net.flush()
+    assert(printed(a, "SHARE_DECLINED"))
+    eq(#b.Model.ListTemplates(), 0)
+    eq(count(a.Share.Outgoing()), 0)
+end)
+
+shareTest("Share: blocking a sender hides their later offers, and persists", function()
+    local a, b = newClient("Alice"), newClient("Bob")
+    local id = chainIn(a, 1)
+    a.Share.Offer("quest", id, "WHISPER", "Bob", net.now)
+    net.flush()
+    b.Share.Block(b.shown[1])
+    assert(b.Model.IsShareBlocked("alice-realm"))
+    net.now = net.now + 100
+    a.Share.Offer("quest", id, "WHISPER", "Bob", net.now)
+    net.flush()
+    eq(#b.shown, 1, "no second popup")
+    eq(b.Share.dropped, 1)
+    eq(#a.printed, 0, "the sender learns nothing")
+    -- Survives a reload: InitDB keeps the cleaned list.
+    b.Model.InitDB(b.Model.account, b.Model.char)
+    assert(b.Model.IsShareBlocked("alice-realm"))
+    b.Model.ClearShareBlocked()
+    eq(b.Model.IsShareBlocked("alice-realm"), false)
+end)
+
+shareTest("Share: the game's ignore list and the incoming setting are honoured", function()
+    local a, b = newClient("Alice"), newClient("Bob")
+    local id = chainIn(a, 1)
+    b.ignored["Alice-Realm"] = true
+    a.Share.Offer("quest", id, "WHISPER", "Bob", net.now)
+    net.flush()
+    eq(#b.shown, 0, "ignored")
+    b.ignored = {}
+    -- Default: whispers only from friends, guild and group.
+    b.Model.account.options.sharing.incoming = "trusted"
+    net.now = net.now + 100
+    a.Share.Offer("quest", id, "WHISPER", "Bob", net.now)
+    net.flush()
+    eq(#b.shown, 0, "a stranger's whisper")
+    b.trusted["Alice-Realm"] = true
+    net.now = net.now + 100
+    a.Share.Offer("quest", id, "WHISPER", "Bob", net.now)
+    net.flush()
+    eq(#b.shown, 1, "a friend's whisper")
+    b.Share.Decline(b.shown[1])
+    b.Model.account.options.sharing.incoming = "off"
+    net.now = net.now + 100
+    a.Share.Offer("quest", id, "WHISPER", "Bob", net.now)
+    net.flush()
+    eq(#b.shown, 1, "off means off")
+    b.trusted = {}
+    b.Model.account.options.sharing.incoming = "anyone"
+    net.now = net.now + 100
+    a.Share.Offer("quest", id, "WHISPER", "Bob", net.now)
+    net.flush()
+    eq(#b.shown, 2, "anyone")
+    eq(Model.CleanOptions({ sharing = { incoming = "everyone" } }).sharing.incoming, "trusted", "bad value")
+    eq(Model.CleanOptions({ sharing = { chatLinks = false } }).sharing.chatLinks, false)
+end)
+
+shareTest("Share: offers from one sender are rate limited, and pending offers capped", function()
+    local a, b = newClient("Alice"), newClient("Bob")
+    b.Model.account.options.sharing.incoming = "anyone"
+    local id = chainIn(a, 1)
+    a.Share.Offer("quest", id, "WHISPER", "Bob", net.now)
+    net.flush()
+    net.now = net.now + 5
+    a.Share.Offer("quest", id, "WHISPER", "Bob", net.now)
+    net.flush()
+    eq(#b.Share.PendingOffers(), 1, "second offer within the cooldown dropped")
+    eq(b.Share.dropped, 1)
+    -- Three more senders: only MAX_PENDING wait, the last one hears "busy".
+    for _, n in ipairs({ "Cara", "Dan", "Eve" }) do
+        local c = newClient(n)
+        c.Share.Offer("quest", chainIn(c, 1, n), "WHISPER", "Bob", net.now)
+        net.flush()
+    end
+    eq(#b.Share.PendingOffers(), Share.MAX_PENDING)
+    eq(#b.shown, 1, "one popup at a time")
+    assert(printed(net.clients["Eve-Realm"], "SHARE_REMOTE_BUSY"))
+    -- Answering the popup shows the next one.
+    b.Share.Decline(b.shown[1])
+    eq(#b.shown, 2)
+    eq(b.shown[2].senderLabel, "Cara")
+end)
+
+shareTest("Share: unsolicited or foreign data is dropped", function()
+    local a, b, c = newClient("Alice"), newClient("Bob"), newClient("Cara")
+    b.Model.account.options.sharing.incoming = "anyone"
+    local id = chainIn(a, 1)
+    local tid = a.Share.Offer("quest", id, "WHISPER", "Bob", net.now)
+    net.flush()
+    -- Data before accepting, from the sender and from a third player.
+    local forged = Serializer.Encode(Model.ValidateTemplate(template({ { type = "manual", text = "x" } }, { title = "Evil" })))
+    local frame = Comm.Pack("1", "D", tid, 1, 1, "p", forged)
+    b.Share.OnMessage(frame, "WHISPER", "Alice-Realm", net.now)
+    b.Share.OnMessage(frame, "WHISPER", "Cara-Realm", net.now)
+    b.Share.Accept(b.shown[1], net.now)
+    -- Accepted from Alice: Cara still can't slip data in.
+    b.Share.OnMessage(frame, "WHISPER", "Cara-Realm", net.now)
+    -- Nor can anyone over a group channel.
+    b.Share.OnMessage(frame, "PARTY", "Alice-Realm", net.now)
+    eq(#b.Model.ListTemplates(), 0)
+    net.flush(5)
+    eq(#b.Model.ListTemplates(), 1)
+    eq(b.Model.ListTemplates()[1].template.title, "Part 1", "the real quest, not the forged one")
+    eq(#c.shown, 0)
+end)
+
+shareTest("Share: a transfer that stalls times out on both sides", function()
+    local a, b = newClient("Alice"), newClient("Bob")
+    local tid = a.Share.Offer("quest", chainIn(a, 3), "WHISPER", "Bob", net.now)
+    net.flush()
+    b.Share.Accept(b.shown[1], net.now)
+    -- Lose every second fragment.
+    local n = 0
+    net.filter = function(msg)
+        if msg.text:find("~D~", 1, true) then
+            n = n + 1
+            return n % 2 == 0
+        end
+    end
+    net.flush(3)
+    eq(count(b.Share.Incoming()), 1, "still waiting")
+    net.filter = nil
+    tick(Share.TRANSFER_TIMEOUT + 2)
+    assert(printed(b, "SHARE_TIMEOUT"))
+    eq(count(b.Share.Incoming()), 0)
+    eq(#b.Model.ListTemplates(), 0)
+    -- The sender got the abort; late fragments are dropped by the receiver.
+    b.Share.OnMessage(Comm.Pack("1", "D", tid, 1, 9, "p", "x"), "WHISPER", "Alice-Realm", net.now)
+    eq(count(b.Share.Incoming()), 0)
+    tick(Share.OFFER_TTL)
+    eq(count(a.Share.Outgoing()), 0)
+end)
+
+shareTest("Share: the sender can be told to stop, and a receiver abort cancels the queue", function()
+    local a, b = newClient("Alice"), newClient("Bob")
+    a.group, b.group = 1, 1
+    local tid = a.Share.Offer("quest", chainIn(a, 3), "GROUP", nil, net.now)
+    net.flush()
+    b.Share.Accept(b.shown[1], net.now)
+    -- Hold the data back, then Bob aborts.
+    net.filter = function(msg) return not msg.text:find("~D~", 1, true) end
+    a.lockdown = true
+    net.flush()
+    assert(a.Comm.Pending() > 0)
+    b.Share.OnMessage(Comm.Pack("1", "X", tid), "WHISPER", "Alice-Realm", net.now) -- harmless on the receiver: Alice isn't sending to herself
+    a.Share.OnMessage(Comm.Pack("1", "X", tid), "WHISPER", "Bob-Realm", net.now)
+    eq(a.Comm.Pending(), 0, "nothing more queued for Bob")
+end)
+
+shareTest("Share: a group offer reaches everyone but the sender, each accepts on their own", function()
+    local a, b, c = newClient("Alice"), newClient("Bob"), newClient("Cara")
+    a.group, b.group, c.group = 1, 1, 1
+    local tid = assert(a.Share.Offer("quest", chainIn(a, 2), "GROUP", nil, net.now))
+    net.flush()
+    eq(#a.shown, 0, "our own echo is ignored")
+    eq(#b.shown, 1, "group offers pass the trusted setting")
+    eq(#c.shown, 1)
+    b.Share.Accept(b.shown[1], net.now)
+    c.Share.Accept(c.shown[1], net.now)
+    net.flush(10)
+    eq(#b.Model.ListTemplates(), 2)
+    eq(#c.Model.ListTemplates(), 2)
+    eq(count(a.Share.Outgoing()[tid].recipients), 2)
+    tick(Share.OFFER_TTL + 1)
+    eq(count(a.Share.Outgoing()), 0, "a group offer ends when it expires")
+    -- Accepting after that is refused.
+    local d = newClient("Dan")
+    d.Share.OnMessage(Comm.Pack("1", "O", tid, "quest", 1, 10, "0", "T"), "PARTY", "Alice-Realm", net.now)
+    d.Share.Accept(d.shown[1], net.now)
+    net.flush()
+    assert(printed(d, "SHARE_ABORTED"))
+end)
+
+shareTest("Share: offers check the sender can send, the channel and the size", function()
+    local a = newClient("Alice")
+    local id = chainIn(a, 1)
+    a.canSend = false
+    eq(select(2, a.Share.Offer("quest", id, "WHISPER", "Bob", net.now)), "ERR_SHARE_TRIAL")
+    a.canSend = true
+    eq(select(2, a.Share.Offer("quest", id, "GROUP", nil, net.now)), "ERR_SHARE_NO_GROUP")
+    eq(select(2, a.Share.Offer("quest", id, "GUILD", nil, net.now)), "ERR_SHARE_NO_GUILD")
+    eq(select(2, a.Share.Offer("quest", id, "WHISPER", "  ", net.now)), "ERR_SHARE_NO_TARGET")
+    eq(select(2, a.Share.Offer("quest", id, "WHISPER", "alice", net.now)), "ERR_SHARE_SELF")
+    eq(select(2, a.Share.Offer("quest", "nope", "WHISPER", "Bob", net.now)), "ERR_NO_TEMPLATE")
+    eq(select(2, a.Share.Offer("section", "nope", "WHISPER", "Bob", net.now)), "ERR_SECTION_EMPTY")
+    for i = 1, Share.MAX_OUTGOING do assert(a.Share.Offer("quest", id, "WHISPER", "P" .. i, net.now)) end
+    eq(select(2, a.Share.Offer("quest", id, "WHISPER", "Bob", net.now)), "ERR_SHARE_BUSY")
+end)
+
+shareTest("Share: a whole section can be offered", function()
+    local a, b = newClient("Alice"), newClient("Bob")
+    local s = assert(a.Model.CreateSection("Pack", 1000))
+    a.Model.SetSection({ chainIn(a, 2), chainIn(a, 1, "Solo ") }, s)
+    assert(a.Share.Offer("section", s, "WHISPER", "Bob", net.now))
+    net.flush()
+    eq(b.shown[1].kind, "section")
+    eq(b.shown[1].title, "Pack")
+    eq(b.shown[1].count, 3)
+    b.Share.Accept(b.shown[1], net.now)
+    net.flush(5)
+    eq(#b.Model.ListTemplates(), 3)
+    eq(b.Model.ListSections()[1].name, "Pack")
+end)
+
+shareTest("Share: oversize, changed or malformed data fails the transfer", function()
+    local b = newClient("Bob")
+    b.Model.account.options.sharing.incoming = "anyone"
+    local function offerFrom(sender, tid, bytes)
+        b.Share.OnMessage(Comm.Pack("1", "O", tid, "quest", 1, bytes, "0", "T"), "WHISPER", sender, net.now)
+        b.Share.Accept(b.shown[#b.shown], net.now)
+    end
+    offerFrom("Alice-Realm", "t1", 10)
+    b.Share.OnMessage(Comm.Pack("1", "D", "t1", 1, 2, "p", ("x"):rep(11)), "WHISPER", "Alice-Realm", net.now)
+    assert(printed(b, "SHARE_TOO_BIG"), "more bytes than announced")
+    net.now = net.now + 100
+    offerFrom("Alice-Realm", "t2", 100)
+    b.Share.OnMessage(Comm.Pack("1", "D", "t2", 1, 2, "p", "abc"), "WHISPER", "Alice-Realm", net.now)
+    b.Share.OnMessage(Comm.Pack("1", "D", "t2", 2, 3, "p", "abc"), "WHISPER", "Alice-Realm", net.now)
+    eq(count(b.Share.Incoming()), 0, "the fragment count changed mid-way")
+    net.now = net.now + 100
+    offerFrom("Alice-Realm", "t3", 100)
+    b.Share.OnMessage(Comm.Pack("1", "D", "t3", 1, 1, "p", "CQ1:garbage"), "WHISPER", "Alice-Realm", net.now)
+    assert(printed(b, "SHARE_IMPORT_FAILED"), "bad text goes through the normal import errors")
+    -- Offers that make no sense never pop up.
+    local before = #b.shown
+    for _, f in ipairs({
+        Comm.Pack("1", "O", "t4", "virus", 1, 10, "0", "T"),
+        Comm.Pack("1", "O", "t5", "quest", 0, 10, "0", "T"),
+        Comm.Pack("1", "O", "t6", "quest", 1, Serializer.MAX_LENGTH + 1, "0", "T"),
+        Comm.Pack("2", "O", "t7", "quest", 1, 10, "0", "T"),
+    }) do b.Share.OnMessage(f, "WHISPER", "Zed-Realm", net.now) end
+    eq(#b.shown, before)
+end)
+
+shareTest("Share: offer titles and sender names are sanitised", function()
+    local b = newClient("Bob")
+    b.Model.account.options.sharing.incoming = "anyone"
+    b.Share.OnMessage(Comm.Pack("1", "O", "t1", "quest", 1, 10, "0", "|cffff0000[Free]|r |Hitem:1|h:" .. ("x"):rep(200)),
+        "WHISPER", "Mal|r-Realm", net.now)
+    local offer = b.shown[1]
+    assert(not offer.title:find("[|%[%]:]"), offer.title)
+    assert(#offer.title <= Share.MAX_TITLE)
+    assert(not offer.senderLabel:find("|", 1, true))
+end)
+
+shareTest("Share: the template cap refuses an offer before any data moves", function()
+    local a, b = newClient("Alice"), newClient("Bob")
+    b.Model.MAX_TEMPLATES = 1
+    chainIn(b, 1, "Mine ")
+    a.Share.Offer("quest", chainIn(a, 2), "WHISPER", "Bob", net.now)
+    net.flush()
+    eq(#b.shown, 0)
+    assert(printed(b, "SHARE_FULL"))
+    assert(printed(a, "SHARE_REMOTE_FULL"))
+end)
+
+shareTest("Share: chat lockdown queues the offer until it lifts", function()
+    local a, b = newClient("Alice"), newClient("Bob")
+    a.lockdown = true
+    assert(a.Share.Offer("quest", chainIn(a, 1), "WHISPER", "Bob", net.now))
+    assert(printed(a, "SHARE_QUEUED_LOCKDOWN"))
+    net.flush()
+    eq(#b.shown, 0)
+    eq(a.Comm.paused, true)
+    a.lockdown = false
+    net.flush()
+    eq(#b.shown, 1)
+end)
+
+shareTest("Share: popups wait for the end of combat", function()
+    local a, b = newClient("Alice"), newClient("Bob")
+    b.combat = true
+    a.Share.Offer("quest", chainIn(a, 1), "WHISPER", "Bob", net.now)
+    net.flush()
+    eq(#b.shown, 0)
+    eq(#b.Share.PendingOffers(), 1)
+    b.combat = false
+    b.Share.ShowNext()
+    eq(#b.shown, 1)
+end)
+
+shareTest("Share: an offer nobody answers expires and its popup closes", function()
+    local a, b = newClient("Alice"), newClient("Bob")
+    a.Share.Offer("quest", chainIn(a, 1), "WHISPER", "Bob", net.now)
+    net.flush()
+    tick(Share.OFFER_TTL + 1)
+    eq(#b.hidden, 1)
+    eq(#b.Share.PendingOffers(), 0)
+    eq(b.Share.Shown(), nil)
+end)
+
+shareTest("Share: a failed send tells the sender", function()
+    local a = newClient("Alice")
+    a.sendResult = "offline"
+    a.Share.Offer("quest", chainIn(a, 1), "WHISPER", "Gone", net.now)
+    net.flush()
+    assert(printed(a, "SHARE_FAIL_OFFLINE"))
+    eq(count(a.Share.Outgoing()), 0)
+end)
+
+-- Chat links ---------------------------------------------------------------------------------
+
+shareTest("Chat link: the marker becomes a local link and a click asks the sender", function()
+    local a, b = newClient("Alice"), newClient("Bob")
+    b.Model.account.options.sharing.incoming = "off" -- a requested offer still gets through
+    local id = chainIn(a, 1, "The |cffff0000Ember: [Oath] ")
+    local marker = assert(a.Share.MakeLink("quest", id, net.now))
+    eq(marker, "[CustomQuests: The cffff0000Ember Oath 1]")
+    local msg = b.Share.LinkifyMarkers("look " .. marker .. "!", "Alice-Realm")
+    eq(msg, "look |cff71d5ff|Haddon:CustomQuests:Alice-Realm:The cffff0000Ember Oath 1|h[CustomQuests: The cffff0000Ember Oath 1]|h|r!")
+    local author, label = b.Share.ParseLink("addon:CustomQuests:Alice-Realm:The cffff0000Ember Oath 1")
+    eq(author, "Alice-Realm")
+    assert(b.Share.RequestLink(author, label, net.now))
+    eq(select(2, b.Share.RequestLink(author, label, net.now)), "ERR_SHARE_WAIT", "one request at a time")
+    net.flush()
+    eq(#b.shown, 1)
+    b.Share.Accept(b.shown[1], net.now)
+    net.flush(5)
+    eq(#b.Model.ListTemplates(), 1)
+end)
+
+shareTest("Chat link: unknown or expired links answer 'gone'; hostile markers stay text", function()
+    local a, b = newClient("Alice"), newClient("Bob")
+    local id = chainIn(a, 1)
+    local marker = a.Share.MakeLink("quest", id, net.now)
+    net.now = net.now + Share.LINK_TTL + 1
+    assert(b.Share.RequestLink("Alice-Realm", marker:match(": (.-)%]$"), net.now))
+    net.flush()
+    assert(printed(b, "SHARE_LINK_GONE"))
+    eq(#b.shown, 0)
+    eq(b.Share.LinkifyMarkers("no marker here", "Alice-Realm"), nil)
+    eq(b.Share.LinkifyMarkers("[CustomQuests: a|Hitem:1|h]", "Alice-Realm"), nil, "pipes never match")
+    eq(b.Share.LinkifyMarkers("[CustomQuests: a:b]", "Alice-Realm"), nil, "colons never match")
+    eq(b.Share.LinkifyMarkers("[CustomQuests: x]", "|Hx:|h"), nil, "a weird author gives no link")
+    eq(b.Share.ParseLink("addon:Other:Alice-Realm:x"), nil)
+    eq(b.Share.ParseLink("addon:CustomQuests:Alice-Realm:x|h"), nil)
+    eq(select(2, b.Share.RequestLink("Bob", "x", net.now)), "ERR_SHARE_SELF")
 end)
 
 print(("%d passed, %d failed"):format(passed, failed))
